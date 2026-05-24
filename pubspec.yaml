@@ -4,7 +4,7 @@ version: 0.0.2
 repository: https://github.com/appsup-dart/benchmark_test
 
 environment:
-  sdk: '>=2.19.6 <3.0.0'
+  sdk: ^3.0.0
 
 dependencies:
   test: ^1.21.0
@@ -12,4 +12,4 @@ dependencies:
   meta: ^1.14.0
 
 dev_dependencies:
-  lints: ^2.0.0
+  lints: ^6.0.0
