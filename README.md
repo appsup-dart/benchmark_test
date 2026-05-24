@@ -1,4 +1,9 @@
 
+[![Ceasefire Now](https://badge.techforpalestine.org/default)](https://techforpalestine.org/learn-more)
+
+[:heart: sponsor](https://github.com/sponsors/rbellens)
+
+
 A tool to integrate benchmarking into your development and testing workflow.
 
 ## Features
@@ -150,3 +155,15 @@ jobs:
 ```
 
 This workflow commits benchmark results to the `gh-pages` branch and posts a comment when a performance regression is detected.
+
+
+## Sponsor
+
+If your team depends on this package in production, please consider sponsoring maintenance.
+
+Sponsorship helps fund:
+- compatibility and dependency updates
+- bug fixes and issue triage
+- documentation and migration support
+
+👉 https://github.com/sponsors/rbellens
