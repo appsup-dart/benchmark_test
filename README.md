@@ -1,11 +1,152 @@
 
 A tool to integrate benchmarking into your development and testing workflow.
 
-
 ## Features
 
 * Run benchmarks as unit tests
 * Easily profile your code from VS code
 * Compare benchmarks between different commits on github
 
+## Usage
 
+Add `benchmark_test` as a dev dependency:
+
+```yaml
+dev_dependencies:
+  benchmark_test: ^0.0.2
+```
+
+Create a test file (for example `test/benchmarks_test.dart`) and use the `benchmark` function like a regular test:
+
+```dart
+import 'package:benchmark_test/benchmark_test.dart';
+
+void main() {
+  group('my benchmarks', () {
+    benchmark('parse json', () {
+      // code to benchmark
+    });
+
+    benchmark('parse json (long run)', () {
+      // code to benchmark
+    }, minDuration: Duration(seconds: 4), minSamples: 30);
+  });
+}
+```
+
+Run benchmarks with `dart test`:
+
+```sh
+dart test test/benchmarks_test.dart
+```
+
+### The `benchmark` method
+
+`benchmark` registers a test that repeatedly executes the given function and prints performance statistics:
+
+```
+my benchmarks parse json x 12345.67 ops/sec ±2.34% (42 runs sampled, average duration: 0:00:00.000081)
+```
+
+The output includes:
+
+* **ops/sec** — estimated operations per second
+* **±%** — relative margin of error (95% confidence interval)
+* **runs sampled** — number of iterations after the warm-up run
+* **average duration** — mean time per iteration
+
+#### Parameters
+
+| Parameter     | Default              | Description |
+|---------------|----------------------|-------------|
+| `minDuration` | `Duration(seconds: 2)` | Keep running until at least this much time has elapsed |
+| `minSamples`  | `5`                  | Keep running until at least this many iterations have completed |
+| `timeout`     | `minDuration * 2`    | Fail the test if it exceeds this duration |
+
+The first iteration is treated as a warm-up run and is excluded from the statistics.
+
+#### `setUpEach` and `tearDownEach`
+
+Use these to run setup and teardown logic before and after every iteration (not just once per test):
+
+```dart
+import 'package:benchmark_test/benchmark_test.dart';
+
+void main() {
+  group('with setup', () {
+    setUpEach(() {
+      // runs before each iteration
+    });
+
+    tearDownEach(() {
+      // runs after each iteration
+    });
+
+    benchmark('my benchmark', () {
+      // ...
+    });
+  });
+}
+```
+
+When called inside a nested `group`, they apply only to benchmarks within that group.
+
+### Profile code from VS Code
+
+To profile a benchmark with the Dart CPU profiler, add a launch configuration to `.vscode/launch.json`:
+
+```json
+{
+  "name": "Profile",
+  "request": "launch",
+  "type": "dart",
+  "codeLens": {
+    "for": ["debug-test"]
+  },
+  "env": {"PROFILE_MODE": "true"}
+}
+```
+
+When `PROFILE_MODE` is set to `true`, the benchmark pauses at the start and end of each test so you can start and stop CPU profiling in the debugger. Use the **Profile** code lens on a benchmark test to launch it in profile mode.
+
+Tests do not run in the main isolate, so in the CPU profiler you must select the isolate where the test is running (often labeled something like `test_suite:... #2`) before starting recording. The benchmark prints these steps to the console when it pauses.
+
+### Track benchmarks on GitHub
+
+Create `.github/workflows/benchmark.yaml` to run benchmarks on every push to `master` and store results with [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark):
+
+```yaml
+name: Benchmark
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  deployments: write
+
+jobs:
+  benchmark:
+    name: Run benchmark tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - name: Run benchmark
+        run: dart test test/benchmarks_test.dart | tee output.txt
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'benchmarkjs'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          # Show alert with commit comment on detecting possible performance regression
+          alert-threshold: '200%'
+          comment-on-alert: true
+          fail-on-alert: true
+```
+
+This workflow commits benchmark results to the `gh-pages` branch and posts a comment when a performance regression is detected.
