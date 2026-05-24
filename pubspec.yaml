@@ -1,7 +1,11 @@
 name: benchmark_test
 description: A tool to integrate benchmarking into your development and testing workflow.
 version: 0.0.2
+homepage: https://github.com/appsup-dart/benchmark_test
 repository: https://github.com/appsup-dart/benchmark_test
+funding:
+ - https://github.com/sponsors/rbellens
+
 
 environment:
   sdk: ^3.0.0
@@ -13,3 +17,20 @@ dependencies:
 
 dev_dependencies:
   lints: ^6.0.0
+  melos: ^7.0.0
+
+
+melos:
+  useRootAsPackage: true
+
+  ide:
+    intellij: false
+
+  command:
+    version:
+      linkToCommits: true
+      workspaceChangelog: false
+
+  scripts:
+    preversion: 
+      exec: dart test -j 1  
