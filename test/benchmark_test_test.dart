@@ -56,9 +56,9 @@ Map<String, List<num>> _parseOutput(String output) {
   var results = <String, List<num>>{};
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    var m =
-        RegExp(r'(.*) x ([0-9\.]+) ops/sec ±([0-9\.]+)% \((\d+) runs sampled\)')
-            .firstMatch(line);
+    var m = RegExp(
+            r'(.*) x ([0-9\.]+) ops/sec ±([0-9\.]+)% \((\d+) runs sampled, average duration: ([^\)]+)\)')
+        .firstMatch(line);
 
     if (m != null) {
       var ops = num.parse(m.group(2)!);
