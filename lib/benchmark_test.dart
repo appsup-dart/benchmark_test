@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:ansi/ansi.dart' as ansi;
 import 'package:meta/meta.dart';
 import 'package:test/test.dart';
 import 'package:test_api/hooks.dart';
@@ -11,6 +12,13 @@ import 'package:test_api/hooks.dart';
 final bool isProfileMode = Platform.environment['PROFILE_MODE'] == 'true';
 final _benchmarkOutputFormat = _BenchmarkOutputFormat.fromEnvironment(
   Platform.environment['BENCHMARK_OUTPUT'],
+);
+final _updateBenchmarkBaseline =
+    (Platform.environment['BENCHMARK_UPDATE_BASELINE'] ?? '').toLowerCase() ==
+        'true';
+final _benchmarkBaselineFile = File('build/benchmark_test/baselines.json');
+final _benchmarkBaselineStore = _BenchmarkBaselineStore(
+  _benchmarkBaselineFile,
 );
 
 final _setUpsEach = <dynamic Function()>[];
@@ -49,6 +57,10 @@ void tearDownEach(FutureOr<void> Function() callback) {
 /// The environment variable `BENCHMARK_OUTPUT` controls the output format.
 /// Supported values are `human`, `benchmarkjs`, and `ndjson`. If unset,
 /// `human` is used.
+///
+/// The human output format compares results against the baseline stored in
+/// `build/benchmark_test/baselines.json`. Set `BENCHMARK_UPDATE_BASELINE` to
+/// `true` to create or overwrite the baseline.
 ///
 /// If the environment variable `PROFILE_MODE` is set to `true`, the test will
 /// pause at the beginning and end of the test to allow the user to start and
@@ -162,13 +174,20 @@ enum _BenchmarkOutputFormat {
   String format(_BenchmarkResult result) {
     switch (this) {
       case human:
-        return [
+        var lines = [
           'Benchmark: ${result.name}',
           '  ${result.formattedOperationsPerSecond} ops/sec',
           '  ±${result.formattedRelativeMarginOfError}% margin of error',
           '  ${result.runs} runs sampled',
           '  ${result.averageDuration} average duration',
-        ].join('\n');
+        ];
+        lines.addAll(
+          _benchmarkBaselineStore.formatComparison(
+            result,
+            updateBaseline: _updateBenchmarkBaseline,
+          ),
+        );
+        return lines.join('\n');
       case benchmarkjs:
         return '${result.name} x ${result.formattedOperationsPerSecond} '
             'ops/sec ±${result.formattedRelativeMarginOfError}% '
@@ -193,6 +212,36 @@ class _BenchmarkResult {
     required this.runs,
     required this.averageDuration,
   });
+
+  static _BenchmarkResult? fromJson(Object? value, {required String name}) {
+    if (value is! Map) return null;
+
+    var throughput = value['throughput'];
+    var statistics = value['statistics'];
+    var latency = value['latency'];
+    if (throughput is! Map || statistics is! Map || latency is! Map) {
+      return null;
+    }
+
+    var operationsPerSecond = throughput['value'];
+    var relativeMarginOfError = statistics['relativeMarginOfError'];
+    var samples = statistics['samples'];
+    var meanLatency = latency['mean'];
+    if (operationsPerSecond is! num ||
+        relativeMarginOfError is! num ||
+        samples is! num ||
+        meanLatency is! num) {
+      return null;
+    }
+
+    return _BenchmarkResult(
+      name: name,
+      operationsPerSecond: operationsPerSecond.toDouble(),
+      relativeMarginOfError: relativeMarginOfError.toDouble(),
+      runs: samples.toInt(),
+      averageDuration: Duration(microseconds: meanLatency.toInt()),
+    );
+  }
 
   String get formattedOperationsPerSecond {
     var precision = -(math.log(operationsPerSecond) / math.ln10).ceil() + 3;
@@ -221,6 +270,119 @@ class _BenchmarkResult {
     };
   }
 }
+
+class _BenchmarkBaselineStore {
+  final File file;
+
+  Map<String, _BenchmarkResult>? _baselines;
+
+  _BenchmarkBaselineStore(this.file);
+
+  List<String> formatComparison(
+    _BenchmarkResult result, {
+    required bool updateBaseline,
+  }) {
+    var baselines = _readBaselines();
+    var baseline = baselines[result.name];
+    var lines = <String>[];
+
+    if (baseline == null) {
+      lines.add(
+        ansi.yellow(
+          '  Baseline: none (set BENCHMARK_UPDATE_BASELINE=true to create one)',
+        ),
+      );
+    } else {
+      lines.add(
+        '  Baseline: ${baseline.formattedOperationsPerSecond} ops/sec '
+        '(${baseline.averageDuration} average duration)',
+      );
+      lines.add(_formatChange(result, baseline));
+    }
+
+    if (updateBaseline) {
+      baselines[result.name] = result;
+      _writeBaselines(baselines);
+      lines.add(
+        ansi.yellow(
+          '  Baseline updated: ${file.path}',
+        ),
+      );
+    }
+
+    return lines;
+  }
+
+  Map<String, _BenchmarkResult> _readBaselines() {
+    var baselines = _baselines;
+    if (baselines != null) return baselines;
+
+    if (!file.existsSync()) {
+      return _baselines = <String, _BenchmarkResult>{};
+    }
+
+    var decoded = jsonDecode(file.readAsStringSync());
+    if (decoded is! Map) {
+      return _baselines = <String, _BenchmarkResult>{};
+    }
+
+    var benchmarks = decoded['benchmarks'];
+    if (benchmarks is! Map) {
+      return _baselines = <String, _BenchmarkResult>{};
+    }
+
+    baselines = <String, _BenchmarkResult>{};
+    for (var entry in benchmarks.entries) {
+      var name = entry.key;
+      if (name is! String) continue;
+
+      var result = _BenchmarkResult.fromJson(entry.value, name: name);
+      if (result != null) baselines[name] = result;
+    }
+    return _baselines = baselines;
+  }
+
+  void _writeBaselines(Map<String, _BenchmarkResult> baselines) {
+    file.parent.createSync(recursive: true);
+    var encoder = JsonEncoder.withIndent('  ');
+    file.writeAsStringSync(
+      '${encoder.convert({
+            'formatVersion': 1,
+            'benchmarks': {
+              for (var entry in baselines.entries)
+                entry.key: entry.value.toJson()
+            },
+          })}\n',
+    );
+  }
+}
+
+String _formatChange(
+  _BenchmarkResult result,
+  _BenchmarkResult baseline,
+) {
+  var baselineOps = baseline.operationsPerSecond;
+  if (baselineOps == 0) {
+    return '  Change: unavailable (baseline is 0 ops/sec)';
+  }
+
+  var change = (result.operationsPerSecond - baselineOps) / baselineOps * 100;
+  var formattedChange = change.toStringAsFixed(2);
+
+  if (change >= _benchmarkChangeThreshold) {
+    return ansi.green('  ✅ Change: +$formattedChange% improvement');
+  }
+
+  if (change <= -_benchmarkChangeThreshold) {
+    return ansi.red('  ⚠️ Change: $formattedChange% regression');
+  }
+
+  var prefix = change >= 0 ? '+' : '';
+  return '  Change: $prefix$formattedChange% '
+      '(within ±$_benchmarkChangeThreshold% threshold)';
+}
+
+const _benchmarkChangeThreshold = 5;
 
 const _tTable = {
   '0': 12.706,

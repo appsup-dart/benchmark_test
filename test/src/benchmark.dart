@@ -3,6 +3,10 @@ import 'package:test/test.dart';
 
 void main() {
   group('delay', () {
+    benchmark('10ms baseline fixture', () async {
+      await Future.delayed(Duration(milliseconds: 10));
+    }, minDuration: Duration(milliseconds: 50));
+
     benchmark('100ms', () async {
       await Future.delayed(Duration(milliseconds: 100));
     });

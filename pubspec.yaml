@@ -14,6 +14,7 @@ dependencies:
   test: ^1.21.0
   test_api: '>=0.6.0 <0.8.0'
   meta: ^1.14.0
+  ansi: ^0.4.2
 
 dev_dependencies:
   lints: ^6.0.0

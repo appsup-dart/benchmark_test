@@ -84,6 +84,22 @@ Supported values:
 {"formatVersion":1,"name":"my benchmarks parse json","throughput":{"value":12345.67,"unit":"ops/sec"},"statistics":{"relativeMarginOfError":2.34,"samples":42},"latency":{"mean":81,"unit":"microseconds"}}
 ```
 
+#### Baselines
+
+Human output compares each benchmark against the baseline stored in `build/benchmark_test/baselines.json`. Baselines are read-only by default:
+
+```sh
+dart test test/benchmarks_test.dart
+```
+
+Create or overwrite the baseline by setting `BENCHMARK_UPDATE_BASELINE`:
+
+```sh
+BENCHMARK_UPDATE_BASELINE=true dart test test/benchmarks_test.dart
+```
+
+The comparison uses throughput, so higher `ops/sec` is an improvement and lower `ops/sec` is a regression. Changes of at least 5% are marked with `✅` for improvements or `⚠️` for regressions. Improvements and regressions are colored when ANSI colors are supported.
+
 #### Parameters
 
 | Parameter     | Default              | Description |

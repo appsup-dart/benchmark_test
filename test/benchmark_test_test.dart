@@ -5,16 +5,54 @@ import 'package:test/test.dart';
 
 void main() {
   group('benchmark', () {
+    test('can update and compare against a human baseline', () {
+      _preserveBaseline();
+
+      var update = _runBenchmarkProcess(
+        'delay 10ms baseline fixture',
+        environment: {
+          'BENCHMARK_UPDATE_BASELINE': 'true',
+        },
+      );
+
+      expect(update.stdout, contains('Benchmark: delay 10ms baseline fixture'));
+      expect(update.stdout, contains('Baseline updated: $_baselinePath'));
+      expect(File(_baselinePath).existsSync(), isTrue);
+
+      var compare = _runBenchmarkProcess(
+        'delay 10ms baseline fixture',
+      );
+
+      expect(compare.stdout, contains('Baseline:'));
+      expect(compare.stdout, contains('Change:'));
+    });
+
+    test('shows icons for significant baseline changes', () {
+      _preserveBaseline();
+
+      _writeBaseline(
+        name: 'delay 10ms baseline fixture',
+        operationsPerSecond: 10,
+      );
+      var improvement = _runBenchmarkProcess(
+        'delay 10ms baseline fixture',
+      );
+      expect(improvement.stdout, contains('✅ Change:'));
+      expect(improvement.stdout, contains('\u001B['));
+
+      _writeBaseline(
+        name: 'delay 10ms baseline fixture',
+        operationsPerSecond: 1000,
+      );
+      var regression = _runBenchmarkProcess(
+        'delay 10ms baseline fixture',
+      );
+      expect(regression.stdout, contains('⚠️ Change:'));
+    });
+
     test('can output ndjson', () {
-      var v = Process.runSync(
-        'dart',
-        [
-          'test',
-          'test/src/benchmark.dart',
-          '--no-color',
-          '-n',
-          r'^delay 100ms$',
-        ],
+      var v = _runBenchmarkProcess(
+        'delay 100ms',
         environment: {'BENCHMARK_OUTPUT': 'ndjson'},
       );
 
@@ -80,15 +118,8 @@ void main() {
 }
 
 List<num> _runBenchmark(String name) {
-  var v = Process.runSync(
-    'dart',
-    [
-      'test',
-      'test/src/benchmark.dart',
-      '--no-color',
-      '-n',
-      '^${RegExp.escape(name)}\$',
-    ],
+  var v = _runBenchmarkProcess(
+    name,
     environment: {'BENCHMARK_OUTPUT': 'benchmarkjs'},
   );
 
@@ -97,6 +128,71 @@ List<num> _runBenchmark(String name) {
     throw Exception('Benchmark failed: ${v.stdout}');
   }
   return o[name]!;
+}
+
+ProcessResult _runBenchmarkProcess(
+  String name, {
+  Map<String, String> environment = const {},
+}) {
+  return Process.runSync(
+    'dart',
+    [
+      'test',
+      'test/src/benchmark.dart',
+      '--no-color',
+      '-n',
+      '^${RegExp.escape(name)}\$',
+    ],
+    environment: environment,
+  );
+}
+
+void _writeBaseline({
+  required String name,
+  required num operationsPerSecond,
+}) {
+  var file = File(_baselinePath);
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(
+    jsonEncode({
+      'formatVersion': 1,
+      'benchmarks': {
+        name: {
+          'formatVersion': 1,
+          'name': name,
+          'throughput': {
+            'value': operationsPerSecond,
+            'unit': 'ops/sec',
+          },
+          'statistics': {
+            'relativeMarginOfError': 0,
+            'samples': 10,
+          },
+          'latency': {
+            'mean': 10000,
+            'unit': 'microseconds',
+          },
+        },
+      },
+    }),
+  );
+}
+
+void _preserveBaseline() {
+  var file = File(_baselinePath);
+  var original = file.existsSync() ? file.readAsStringSync() : null;
+
+  addTearDown(() {
+    if (original == null) {
+      if (file.existsSync()) file.deleteSync();
+      return;
+    }
+
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(original);
+  });
+
+  if (file.existsSync()) file.deleteSync();
 }
 
 Map<String, List<num>> _parseOutput(String output) {
@@ -117,3 +213,5 @@ Map<String, List<num>> _parseOutput(String output) {
   }
   return results;
 }
+
+const _baselinePath = 'build/benchmark_test/baselines.json';
