@@ -1,0 +1,159 @@
+name: Dart and Flutter benchmark_test
+description: Run benchmark_test benchmarks and publish GitHub Pages results.
+
+inputs:
+  sdk:
+    description: SDK to set up. Supported values are dart and flutter.
+    required: false
+    default: dart
+  flutter-channel:
+    description: Flutter channel used when sdk is flutter.
+    required: false
+    default: stable
+  working-directory:
+    description: Directory that contains the Dart or Flutter package.
+    required: false
+    default: .
+  paths:
+    description: Space-separated benchmark test paths passed to benchmark_test.
+    required: false
+    default: ''
+  compile:
+    description: Compile types to run. Use a comma-separated list.
+    required: false
+    default: jit,aot
+  dart-test-args:
+    description: Additional dart test arguments passed after --.
+    required: false
+    default: ''
+  name:
+    description: Name of the benchmark suite in github-action-benchmark.
+    required: false
+    default: Dart Benchmarks
+  github-token:
+    description: Token used by github-action-benchmark to update GitHub Pages.
+    required: true
+  benchmark-data-dir-path:
+    description: Directory on the GitHub Pages branch that stores benchmark data.
+    required: false
+    default: dev/bench
+  gh-pages-branch:
+    description: Branch used by github-action-benchmark for benchmark pages.
+    required: false
+    default: gh-pages
+  auto-push:
+    description: Whether github-action-benchmark should push the updated pages branch.
+    required: false
+    default: 'true'
+  fail-on-alert:
+    description: Whether github-action-benchmark should fail the job on regression alerts.
+    required: false
+    default: 'false'
+  comment-on-alert:
+    description: Whether github-action-benchmark should comment when an alert happens.
+    required: false
+    default: 'false'
+  alert-threshold:
+    description: github-action-benchmark alert threshold.
+    required: false
+    default: '200%'
+
+outputs:
+  results-file:
+    description: Path to the generated custom benchmark JSON file.
+    value: ${{ steps.benchmark.outputs.results-file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate SDK input
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        case "${{ inputs.sdk }}" in
+          dart|flutter)
+            ;;
+          *)
+            echo "Unsupported sdk '${{ inputs.sdk }}'. Expected 'dart' or 'flutter'." >&2
+            exit 64
+            ;;
+        esac
+
+    - name: Set up Dart
+      if: ${{ inputs.sdk == 'dart' }}
+      uses: dart-lang/setup-dart@v1
+
+    - name: Set up Flutter
+      if: ${{ inputs.sdk == 'flutter' }}
+      uses: subosito/flutter-action@v2
+      with:
+        channel: ${{ inputs.flutter-channel }}
+
+    - name: Install Dart dependencies
+      if: ${{ inputs.sdk == 'dart' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: dart pub get
+
+    - name: Install Flutter dependencies
+      if: ${{ inputs.sdk == 'flutter' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: flutter pub get
+
+    - name: Run benchmark tests
+      id: benchmark
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+
+        work_dir="${RUNNER_TEMP}/benchmark_test"
+        mkdir -p "$work_dir"
+
+        result_inputs=()
+        IFS=',' read -ra compile_types <<< "${{ inputs.compile }}"
+
+        for compile_type in "${compile_types[@]}"; do
+          compile_type="$(echo "$compile_type" | xargs)"
+          if [[ -z "$compile_type" ]]; then
+            continue
+          fi
+
+          output_file="${work_dir}/${compile_type}.jsonl"
+          dart run benchmark_test \
+            --compile "$compile_type" \
+            --output jsonl \
+            ${{ inputs.paths }} \
+            -- ${{ inputs.dart-test-args }} \
+            | tee "$output_file"
+
+          result_inputs+=("--input" "${compile_type}:${output_file}")
+        done
+
+        if [[ ${#result_inputs[@]} -eq 0 ]]; then
+          echo "No compile types configured." >&2
+          exit 64
+        fi
+
+        results_file="${work_dir}/benchmark-results.json"
+        dart "${{ github.action_path }}/tool/github_action/benchmark_action_results.dart" \
+          "${result_inputs[@]}" \
+          > "$results_file"
+
+        echo "results-file=${results_file}" >> "$GITHUB_OUTPUT"
+
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        name: ${{ inputs.name }}
+        tool: customBiggerIsBetter
+        output-file-path: ${{ steps.benchmark.outputs.results-file }}
+        github-token: ${{ inputs.github-token }}
+        benchmark-data-dir-path: ${{ inputs.benchmark-data-dir-path }}
+        gh-pages-branch: ${{ inputs.gh-pages-branch }}
+        auto-push: ${{ inputs.auto-push }}
+        fail-on-alert: ${{ inputs.fail-on-alert }}
+        comment-on-alert: ${{ inputs.comment-on-alert }}
+        alert-threshold: ${{ inputs.alert-threshold }}

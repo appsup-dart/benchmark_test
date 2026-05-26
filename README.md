@@ -184,7 +184,9 @@ Tests do not run in the main isolate, so in the CPU profiler you must select the
 
 ### Track benchmarks on GitHub
 
-Create `.github/workflows/benchmark.yaml` to run benchmarks on every push to `master` and store results with [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark):
+Create `.github/workflows/benchmark.yaml` to run benchmarks on every push to
+`master` and store results with
+[github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark):
 
 ```yaml
 name: Benchmark
@@ -203,24 +205,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-      - run: dart pub get
-      - name: Run benchmark
-        run: BENCHMARK_OUTPUT=benchmarkjs dart test test/benchmarks_test.dart | tee output.txt
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
+      - uses: appsup-dart/benchmark_test@v1
         with:
-          tool: 'benchmarkjs'
-          output-file-path: output.txt
+          paths: test/benchmarks_test.dart
+          compile: jit,aot
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
-          # Show alert with commit comment on detecting possible performance regression
-          alert-threshold: '200%'
           comment-on-alert: true
           fail-on-alert: true
 ```
 
-This workflow commits benchmark results to the `gh-pages` branch and posts a comment when a performance regression is detected.
+The action runs the benchmark CLI once per compile type, converts the JSONL
+results to `github-action-benchmark` custom data, and commits benchmark history
+to the `gh-pages` branch. Results are stored as `customBiggerIsBetter`, with
+benchmark names suffixed by compile type, for example `parse json [jit]` and
+`parse json [aot]`.
+
+For Flutter packages, set `sdk` to `flutter` so the action installs Flutter and
+runs `flutter pub get` before invoking the benchmark CLI:
+
+```yaml
+- uses: appsup-dart/benchmark_test@v1
+  with:
+    sdk: flutter
+    flutter-channel: stable
+    paths: test/benchmarks_test.dart
+    compile: jit,aot
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+The benchmark CLI still runs VM benchmark tests through `dart test`, so the
+benchmark file should be runnable on the Dart VM.
 
 
 ## Sponsor
