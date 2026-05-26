@@ -6,6 +6,8 @@ repository: https://github.com/appsup-dart/benchmark_test
 funding:
  - https://github.com/sponsors/rbellens
 
+executables:
+  benchmark_test:
 
 environment:
   sdk: ^3.0.0
@@ -15,6 +17,7 @@ dependencies:
   test_api: '>=0.6.0 <0.8.0'
   meta: ^1.14.0
   ansi: ^0.4.2
+  args: ^2.5.0
 
 dev_dependencies:
   lints: ^6.0.0

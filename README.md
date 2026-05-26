@@ -45,6 +45,32 @@ Run benchmarks with `dart test`:
 dart test test/benchmarks_test.dart
 ```
 
+Or use the package CLI to run the same benchmarks for multiple compile types:
+
+```sh
+dart run benchmark_test test/benchmarks_test.dart
+```
+
+The CLI currently supports `jit` and `aot` and runs both by default. Use
+`--compile` to choose one or more compile types:
+
+```sh
+dart run benchmark_test --compile jit test/benchmarks_test.dart
+dart run benchmark_test --compile jit,aot test/benchmarks_test.dart
+```
+
+Use `--output` to choose `human`, `benchmarkjs`, or `jsonl` output:
+
+```sh
+dart run benchmark_test --output jsonl test/benchmarks_test.dart
+```
+
+Pass additional `dart test` arguments after `--`:
+
+```sh
+dart run benchmark_test test/benchmarks_test.dart -- -n parse
+```
+
 ### The `benchmark` method
 
 `benchmark` registers a test that repeatedly executes the given function and prints performance statistics:
