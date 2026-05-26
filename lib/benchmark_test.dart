@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -6,9 +8,10 @@ import 'package:meta/meta.dart';
 import 'package:test/test.dart';
 import 'package:test_api/hooks.dart';
 
-import 'dart:developer';
-
 final bool isProfileMode = Platform.environment['PROFILE_MODE'] == 'true';
+final _benchmarkOutputFormat = _BenchmarkOutputFormat.fromEnvironment(
+  Platform.environment['BENCHMARK_OUTPUT'],
+);
 
 final _setUpsEach = <dynamic Function()>[];
 final _tearDownsEach = <dynamic Function()>[];
@@ -42,6 +45,10 @@ void tearDownEach(FutureOr<void> Function() callback) {
 ///
 /// The test will output the number of operations per second, the relative
 /// margin of error, and the number of runs sampled.
+///
+/// The environment variable `BENCHMARK_OUTPUT` controls the output format.
+/// Supported values are `human`, `benchmarkjs`, and `ndjson`. If unset,
+/// `human` is used.
 ///
 /// If the environment variable `PROFILE_MODE` is set to `true`, the test will
 /// pause at the beginning and end of the test to allow the user to start and
@@ -110,16 +117,110 @@ void benchmark(String description, dynamic Function() body,
       var rme = (moe / mean) * 100;
 
       var hz = 1 / (sum / i) * 1000 * 1000;
+      var result = _BenchmarkResult(
+        name: TestHandle.current.name,
+        operationsPerSecond: hz,
+        relativeMarginOfError: rme,
+        runs: i,
+        averageDuration: Duration(microseconds: sum ~/ i),
+      );
 
-      var l = -(math.log(hz) / math.ln10).ceil() + 3;
-
-      print(
-          '${TestHandle.current.name} x ${hz.toStringAsFixed(math.max(l, 0))} ops/sec ±${rme.toStringAsFixed(2)}% ($i runs sampled, average duration: ${Duration(microseconds: sum ~/ i)})');
+      print(_benchmarkOutputFormat.format(result));
       if (isProfileMode) {
         print('  - stop recording');
         debugger(message: 'END: $description');
       }
     }, timeout: timeout ?? Timeout(minDuration * 2));
+
+enum _BenchmarkOutputFormat {
+  human,
+  benchmarkjs,
+  ndjson;
+
+  static _BenchmarkOutputFormat fromEnvironment(String? value) {
+    switch (value?.toLowerCase()) {
+      case null:
+      case '':
+      case 'human':
+        return human;
+      case 'benchmarkjs':
+      case 'benchmark-js':
+      case 'benchmark_js':
+        return benchmarkjs;
+      case 'ndjson':
+      case 'jsonl':
+        return ndjson;
+      default:
+        throw ArgumentError.value(
+          value,
+          'BENCHMARK_OUTPUT',
+          'Expected `human`, `benchmarkjs`, or `ndjson`.',
+        );
+    }
+  }
+
+  String format(_BenchmarkResult result) {
+    switch (this) {
+      case human:
+        return [
+          'Benchmark: ${result.name}',
+          '  ${result.formattedOperationsPerSecond} ops/sec',
+          '  ±${result.formattedRelativeMarginOfError}% margin of error',
+          '  ${result.runs} runs sampled',
+          '  ${result.averageDuration} average duration',
+        ].join('\n');
+      case benchmarkjs:
+        return '${result.name} x ${result.formattedOperationsPerSecond} '
+            'ops/sec ±${result.formattedRelativeMarginOfError}% '
+            '(${result.runs} runs sampled)';
+      case ndjson:
+        return jsonEncode(result.toJson());
+    }
+  }
+}
+
+class _BenchmarkResult {
+  final String name;
+  final double operationsPerSecond;
+  final double relativeMarginOfError;
+  final int runs;
+  final Duration averageDuration;
+
+  _BenchmarkResult({
+    required this.name,
+    required this.operationsPerSecond,
+    required this.relativeMarginOfError,
+    required this.runs,
+    required this.averageDuration,
+  });
+
+  String get formattedOperationsPerSecond {
+    var precision = -(math.log(operationsPerSecond) / math.ln10).ceil() + 3;
+    return operationsPerSecond.toStringAsFixed(math.max(precision, 0));
+  }
+
+  String get formattedRelativeMarginOfError =>
+      relativeMarginOfError.toStringAsFixed(2);
+
+  Map<String, Object> toJson() {
+    return {
+      'formatVersion': 1,
+      'name': name,
+      'throughput': {
+        'value': operationsPerSecond,
+        'unit': 'ops/sec',
+      },
+      'statistics': {
+        'relativeMarginOfError': relativeMarginOfError,
+        'samples': runs,
+      },
+      'latency': {
+        'mean': averageDuration.inMicroseconds,
+        'unit': 'microseconds',
+      },
+    };
+  }
+}
 
 const _tTable = {
   '0': 12.706,

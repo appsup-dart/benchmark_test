@@ -1,9 +1,48 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
 
 void main() {
   group('benchmark', () {
+    test('can output ndjson', () {
+      var v = Process.runSync(
+        'dart',
+        [
+          'test',
+          'test/src/benchmark.dart',
+          '--no-color',
+          '-n',
+          r'^delay 100ms$',
+        ],
+        environment: {'BENCHMARK_OUTPUT': 'ndjson'},
+      );
+
+      var jsonLine = v.stdout
+          .toString()
+          .split('\n')
+          .singleWhere((line) => line.startsWith('{"formatVersion"'));
+      var result = jsonDecode(jsonLine) as Map<String, dynamic>;
+
+      expect(result['formatVersion'], 1);
+      expect(result['name'], 'delay 100ms');
+
+      var throughput = result['throughput'] as Map<String, dynamic>;
+      expect(throughput['value'], closeTo(10, 0.5));
+      expect(throughput['unit'], 'ops/sec');
+
+      var statistics = result['statistics'] as Map<String, dynamic>;
+      expect(statistics['relativeMarginOfError'], isA<num>());
+      expect(statistics['samples'], closeTo(20, 1));
+
+      var latency = result['latency'] as Map<String, dynamic>;
+      expect(
+        latency['mean'],
+        closeTo(Duration(milliseconds: 100).inMicroseconds, 20000),
+      );
+      expect(latency['unit'], 'microseconds');
+    });
+
     test('iteration of 100ms should run about 20 times', () {
       var r = _runBenchmark('delay 100ms');
 
@@ -42,7 +81,16 @@ void main() {
 
 List<num> _runBenchmark(String name) {
   var v = Process.runSync(
-      'dart', ['test', 'test/src/benchmark.dart', '--no-color', '-n', name]);
+    'dart',
+    [
+      'test',
+      'test/src/benchmark.dart',
+      '--no-color',
+      '-n',
+      '^${RegExp.escape(name)}\$',
+    ],
+    environment: {'BENCHMARK_OUTPUT': 'benchmarkjs'},
+  );
 
   var o = _parseOutput(v.stdout);
   if (!o.containsKey(name)) {
@@ -56,9 +104,9 @@ Map<String, List<num>> _parseOutput(String output) {
   var results = <String, List<num>>{};
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    var m = RegExp(
-            r'(.*) x ([0-9\.]+) ops/sec ±([0-9\.]+)% \((\d+) runs sampled, average duration: ([^\)]+)\)')
-        .firstMatch(line);
+    var m =
+        RegExp(r'(.*) x ([0-9\.]+) ops/sec ±([0-9\.]+)% \((\d+) runs sampled\)')
+            .firstMatch(line);
 
     if (m != null) {
       var ops = num.parse(m.group(2)!);

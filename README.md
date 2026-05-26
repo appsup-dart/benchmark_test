@@ -50,7 +50,11 @@ dart test test/benchmarks_test.dart
 `benchmark` registers a test that repeatedly executes the given function and prints performance statistics:
 
 ```
-my benchmarks parse json x 12345.67 ops/sec ±2.34% (42 runs sampled, average duration: 0:00:00.000081)
+Benchmark: my benchmarks parse json
+  12345.67 ops/sec
+  ±2.34% margin of error
+  42 runs sampled
+  0:00:00.000081 average duration
 ```
 
 The output includes:
@@ -59,6 +63,26 @@ The output includes:
 * **±%** — relative margin of error (95% confidence interval)
 * **runs sampled** — number of iterations after the warm-up run
 * **average duration** — mean time per iteration
+
+#### Output formats
+
+By default, benchmarks print a human-readable format. Set `BENCHMARK_OUTPUT` to choose another output format:
+
+```sh
+BENCHMARK_OUTPUT=benchmarkjs dart test test/benchmarks_test.dart
+```
+
+Supported values:
+
+* `human` — default, optimized for local development
+* `benchmarkjs` — benchmark.js-compatible output for tools like `github-action-benchmark`
+* `ndjson` — one JSON object per benchmark result; `jsonl` is also accepted as an alias
+
+`ndjson` output uses this schema:
+
+```json
+{"formatVersion":1,"name":"my benchmarks parse json","throughput":{"value":12345.67,"unit":"ops/sec"},"statistics":{"relativeMarginOfError":2.34,"samples":42},"latency":{"mean":81,"unit":"microseconds"}}
+```
 
 #### Parameters
 
@@ -140,7 +164,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
       - run: dart pub get
       - name: Run benchmark
-        run: dart test test/benchmarks_test.dart | tee output.txt
+        run: BENCHMARK_OUTPUT=benchmarkjs dart test test/benchmarks_test.dart | tee output.txt
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         with:
