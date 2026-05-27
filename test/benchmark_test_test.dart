@@ -54,10 +54,17 @@ void main() {
       expect(regression.stdout, contains('⚠️ Change:'));
     });
 
-    test('can output ndjson', () {
-      var v = _runBenchmarkProcess(
-        'delay 100ms',
-        environment: {'BENCHMARK_OUTPUT': 'ndjson'},
+    test('can output jsonl through the benchmark cli', () {
+      var v = _runBenchmarkCli(
+        const [
+          '--compile',
+          'jit',
+          '--output',
+          'jsonl',
+          '--name',
+          '^delay 100ms\$',
+          'test/src/benchmark.dart',
+        ],
       );
 
       var jsonLine = v.stdout
@@ -122,9 +129,16 @@ void main() {
 }
 
 List<num> _runBenchmark(String name) {
-  var v = _runBenchmarkProcess(
-    name,
-    environment: {'BENCHMARK_OUTPUT': 'benchmarkjs'},
+  var v = _runBenchmarkCli(
+    [
+      '--compile',
+      'jit',
+      '--output',
+      'benchmarkjs',
+      '--name',
+      '^${RegExp.escape(name)}\$',
+      'test/src/benchmark.dart',
+    ],
   );
 
   var o = _parseOutput(v.stdout);

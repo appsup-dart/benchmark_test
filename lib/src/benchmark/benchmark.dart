@@ -4,12 +4,16 @@ import 'package:meta/meta.dart';
 import 'package:test/test.dart';
 import 'package:test_api/hooks.dart';
 
-import 'benchmark_environment.dart';
+import 'benchmark_baseline_store.dart';
+import 'benchmark_configuration.dart';
 import 'benchmark_iteration_hooks.dart';
+import 'benchmark_output_format.dart';
+import 'benchmark_profile_mode.dart';
 import 'benchmark_sampler.dart';
 
-export 'benchmark_environment.dart' show isProfileMode;
+export 'benchmark_configuration.dart' show configureBenchmarkRunner;
 export 'benchmark_iteration_hooks.dart' show setUpEach, tearDownEach;
+export 'benchmark_profile_mode.dart' show isProfileMode;
 
 /// Creates a new benchmark test with the given [description] and [body].
 ///
@@ -19,9 +23,8 @@ export 'benchmark_iteration_hooks.dart' show setUpEach, tearDownEach;
 /// The test will output the number of operations per second, the relative
 /// margin of error, and the number of runs sampled.
 ///
-/// The environment variable `BENCHMARK_OUTPUT` controls the output format.
-/// Supported values are `human`, `benchmarkjs`, and `ndjson`. If unset,
-/// `human` is used.
+/// Benchmarks print human-readable output by default. When run through the
+/// `benchmark_test` CLI, results are emitted as JSONL for the CLI to format.
 ///
 /// The human output format compares results against the baseline stored in
 /// `build/benchmark_test/baselines.json`. Use `--update-baseline` on the
@@ -60,10 +63,13 @@ void benchmark(
         name: TestHandle.current.name,
       );
 
+      final outputFormat = benchmarkConfiguration.emitJsonlResults
+          ? BenchmarkOutputFormat.ndjson
+          : BenchmarkOutputFormat.human;
       print(
-        benchmarkEnvironment.outputFormat.format(
+        outputFormat.format(
           result,
-          baselineStore: benchmarkEnvironment.baselineStore,
+          baselineStore: benchmarkBaselineStore,
         ),
       );
 

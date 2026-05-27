@@ -1,21 +1,21 @@
 import 'dart:io';
 
+import '../benchmark/benchmark_output_format.dart';
 import '../direct_runner/benchmark_test_invocation.dart';
 import '../direct_runner/direct_runner.dart' as direct_runner;
 import '../direct_runner/process_runner.dart';
-import 'benchmark_baseline_updater.dart';
+import 'benchmark_cli_output.dart';
 import 'benchmark_cli_parser.dart';
 
 typedef DartTestRunner = Future<ProcessRunResult> Function(
   BenchmarkTestInvocation invocation, {
-  Map<String, String>? environment,
   bool captureStdout,
 });
 
 Future<int> runBenchmarkCli(
   List<String> arguments, {
   DartTestRunner? runDartTest,
-  BenchmarkBaselineUpdater? baselineUpdater,
+  BenchmarkCliOutput? cliOutput,
   void Function(String line) printStatus = _stderrWriteln,
   void Function(String line) printUsage = _stdoutWriteln,
   void Function(String line) printError = _stderrWriteln,
@@ -36,14 +36,12 @@ Future<int> runBenchmarkCli(
   }
 
   final runner = runDartTest ?? direct_runner.runBenchmarkTestInvocation;
-  final updater =
-      baselineUpdater ?? BenchmarkBaselineUpdater(printLine: printOutput);
-  final displayFormat = resolveBenchmarkOutputFormat(config.outputFormat);
+  final output = cliOutput ?? BenchmarkCliOutput(printLine: printOutput);
+  final displayFormat = BenchmarkOutputFormat.parse(config.outputFormat);
 
   for (final compileType in config.compileTypes) {
     printStatus('Running benchmarks with ${compileType.label}...');
 
-    final captureStdout = config.updateBaseline;
     final runResult = await runner(
       BenchmarkTestInvocation(
         compiler: compileType.testCompiler,
@@ -52,24 +50,16 @@ Future<int> runBenchmarkCli(
         paths: config.paths,
         nameFilter: config.nameFilter,
       ),
-      environment: {
-        'BENCHMARK_COMPILE_TYPE': compileType.label,
-        if (captureStdout)
-          'BENCHMARK_OUTPUT': 'jsonl'
-        else if (config.outputFormat != null)
-          'BENCHMARK_OUTPUT': config.outputFormat!,
-      },
-      captureStdout: captureStdout,
+      captureStdout: true,
     );
 
     if (runResult.exitCode != 0) return runResult.exitCode;
 
-    if (config.updateBaseline) {
-      updater.updateFromRunnerOutput(
-        runResult.stdout,
-        displayFormat: displayFormat,
-      );
-    }
+    output.writeFromRunnerOutput(
+      runResult.stdout,
+      displayFormat: displayFormat,
+      updateBaseline: config.updateBaseline,
+    );
   }
 
   return 0;

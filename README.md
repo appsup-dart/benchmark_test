@@ -101,17 +101,19 @@ The output includes:
 
 #### Output formats
 
-By default, benchmarks print a human-readable format. Set `BENCHMARK_OUTPUT` to choose another output format:
+`dart test` prints human-readable benchmark output. The `benchmark_test` CLI
+supports `--output` to choose another format:
 
 ```sh
-BENCHMARK_OUTPUT=benchmarkjs dart test test/benchmarks_test.dart
+dart run benchmark_test --output benchmarkjs test/benchmarks_test.dart
+dart run benchmark_test --output jsonl test/benchmarks_test.dart
 ```
 
 Supported values:
 
 * `human` — default, optimized for local development
 * `benchmarkjs` — benchmark.js-compatible output for tools like `github-action-benchmark`
-* `ndjson` — one JSON object per benchmark result; `jsonl` is also accepted as an alias
+* `jsonl` — one JSON object per benchmark result (`ndjson` is accepted as an alias)
 
 `ndjson` output uses this schema:
 

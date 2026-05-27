@@ -21,7 +21,6 @@ class DirectRunner {
 
   Future<ProcessRunResult> run(
     BenchmarkTestInvocation invocation, {
-    Map<String, String>? environment,
     bool captureStdout = false,
   }) async {
     try {
@@ -55,14 +54,12 @@ class DirectRunner {
               '--output',
               executable.path,
             ],
-            environment: environment,
           );
           if (compileResult.exitCode != 0) return compileResult;
 
           return await _processRunner.start(
             executable.path,
             const [],
-            environment: environment,
             captureStdout: captureStdout,
           );
         }
@@ -73,7 +70,6 @@ class DirectRunner {
             if (invocation.enableAsserts) '--enable-asserts',
             bootstrap.path,
           ],
-          environment: environment,
           captureStdout: captureStdout,
         );
       } finally {
@@ -91,13 +87,11 @@ class DirectRunner {
 
 Future<ProcessRunResult> runBenchmarkTestInvocation(
   BenchmarkTestInvocation invocation, {
-  Map<String, String>? environment,
   bool captureStdout = false,
   DirectRunner? runner,
 }) {
   return (runner ?? const DirectRunner()).run(
     invocation,
-    environment: environment,
     captureStdout: captureStdout,
   );
 }

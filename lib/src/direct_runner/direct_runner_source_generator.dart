@@ -54,6 +54,10 @@ class DirectRunnerSourceGenerator {
       )
       ..writeln();
 
+    buffer
+      ..writeln("import 'package:benchmark_test/benchmark_test.dart';")
+      ..writeln();
+
     for (var i = 0; i < testFiles.length; i++) {
       buffer.writeln("import '${testFiles[i].absolute.uri}' as test_$i;");
     }
@@ -66,6 +70,7 @@ class DirectRunnerSourceGenerator {
       ..writeln('const String? _plainName = ${nameFilter.plainNameSource};')
       ..writeln()
       ..writeln('Future<void> main() async {')
+      ..writeln('  configureBenchmarkRunner(emitJsonlResults: true);')
       ..writeln('  final success = await _runBenchmarkTests(() async {');
     for (var i = 0; i < testFiles.length; i++) {
       buffer.writeln('    await Future.sync(test_$i.main);');

@@ -1,1 +1,2 @@
-export 'src/benchmark/benchmark.dart' show benchmark, setUpEach, tearDownEach;
+export 'src/benchmark/benchmark.dart'
+    show benchmark, configureBenchmarkRunner, setUpEach, tearDownEach;

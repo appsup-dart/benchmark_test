@@ -7,6 +7,12 @@ import 'benchmark_result.dart';
 
 const benchmarkChangeThreshold = 5;
 
+const benchmarkBaselineFilePath = 'build/benchmark_test/baselines.json';
+
+final benchmarkBaselineStore = BenchmarkBaselineStore(
+  File(benchmarkBaselineFilePath),
+);
+
 class BenchmarkBaselineStore {
   final File file;
 

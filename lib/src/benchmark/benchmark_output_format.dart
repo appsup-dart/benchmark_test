@@ -8,7 +8,7 @@ enum BenchmarkOutputFormat {
   benchmarkjs,
   ndjson;
 
-  static BenchmarkOutputFormat fromEnvironment(String? value) {
+  static BenchmarkOutputFormat parse(String? value) {
     switch (value?.toLowerCase()) {
       case null:
       case '':
@@ -24,8 +24,8 @@ enum BenchmarkOutputFormat {
       default:
         throw ArgumentError.value(
           value,
-          'BENCHMARK_OUTPUT',
-          'Expected `human`, `benchmarkjs`, or `ndjson`.',
+          'output',
+          'Expected `human`, `benchmarkjs`, or `jsonl`.',
         );
     }
   }

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:benchmark_test/src/cli.dart';
-import 'package:benchmark_test/src/cli/benchmark_baseline_updater.dart';
+import 'package:benchmark_test/src/cli/benchmark_cli_output.dart';
 import 'package:benchmark_test/src/direct_runner/benchmark_test_invocation.dart';
 import 'package:benchmark_test/src/direct_runner/benchmark_test_name_filter.dart';
 import 'package:benchmark_test/src/direct_runner/process_runner.dart';
@@ -29,8 +29,7 @@ void main() {
             paths: [],
             nameFilter: null,
           ),
-          environment: const {'BENCHMARK_COMPILE_TYPE': 'jit'},
-          captureStdout: false,
+          captureStdout: true,
         ),
         _RunCall(
           invocation: const BenchmarkTestInvocation(
@@ -40,8 +39,7 @@ void main() {
             paths: [],
             nameFilter: null,
           ),
-          environment: const {'BENCHMARK_COMPILE_TYPE': 'aot'},
-          captureStdout: false,
+          captureStdout: true,
         ),
       ]);
     });
@@ -76,8 +74,9 @@ void main() {
       );
     });
 
-    test('passes output format through the benchmark environment', () async {
-      final runner = _RecordingRunner();
+    test('formats captured jsonl runner output for --output', () async {
+      final runner = _RecordingRunner(stdout: _sampleBenchmarkJsonl);
+      final output = <String>[];
 
       final exitCode = await runBenchmarkCli(
         const [
@@ -89,13 +88,12 @@ void main() {
         ],
         runDartTest: runner.call,
         printStatus: (_) {},
+        printOutput: output.add,
       );
 
       expect(exitCode, 0);
-      expect(runner.calls.single.environment, {
-        'BENCHMARK_COMPILE_TYPE': 'jit',
-        'BENCHMARK_OUTPUT': 'jsonl',
-      });
+      expect(runner.calls.single.captureStdout, isTrue);
+      expect(output.single, startsWith('{"formatVersion":1'));
     });
 
     test('passes assertion opt-in to the benchmark runner', () async {
@@ -150,7 +148,7 @@ void main() {
         ],
         runDartTest: runner.call,
         printStatus: (_) {},
-        baselineUpdater: BenchmarkBaselineUpdater(
+        cliOutput: BenchmarkCliOutput(
           baselineStore: BenchmarkBaselineStore(baselineFile),
           printLine: output.add,
         ),
@@ -158,10 +156,6 @@ void main() {
 
       expect(exitCode, 0);
       expect(runner.calls.single.captureStdout, isTrue);
-      expect(runner.calls.single.environment, {
-        'BENCHMARK_COMPILE_TYPE': 'jit',
-        'BENCHMARK_OUTPUT': 'jsonl',
-      });
       expect(baselineFile.existsSync(), isTrue);
       expect(output.last, contains('Baseline updated: ${baselineFile.path}'));
     });
@@ -297,13 +291,11 @@ class _RecordingRunner {
 
   Future<ProcessRunResult> call(
     BenchmarkTestInvocation invocation, {
-    Map<String, String>? environment,
     bool captureStdout = false,
   }) async {
     calls.add(
       _RunCall(
         invocation: invocation,
-        environment: Map.unmodifiable(environment ?? const {}),
         captureStdout: captureStdout,
       ),
     );
@@ -318,12 +310,10 @@ class _RecordingRunner {
 
 class _RunCall {
   final BenchmarkTestInvocation invocation;
-  final Map<String, String> environment;
   final bool captureStdout;
 
   const _RunCall({
     required this.invocation,
-    required this.environment,
     required this.captureStdout,
   });
 
@@ -335,8 +325,7 @@ class _RunCall {
         invocation.runSkipped == other.invocation.runSkipped &&
         _listEquals(invocation.paths, other.invocation.paths) &&
         invocation.nameFilter == other.invocation.nameFilter &&
-        captureStdout == other.captureStdout &&
-        _mapEquals(environment, other.environment);
+        captureStdout == other.captureStdout;
   }
 
   @override
@@ -347,15 +336,11 @@ class _RunCall {
         Object.hashAll(invocation.paths),
         invocation.nameFilter,
         captureStdout,
-        Object.hashAll(
-          environment.entries
-              .map((entry) => Object.hash(entry.key, entry.value)),
-        ),
       );
 
   @override
   String toString() {
-    return '_RunCall(invocation: $invocation, environment: $environment)';
+    return '_RunCall(invocation: $invocation, captureStdout: $captureStdout)';
   }
 }
 
@@ -363,14 +348,6 @@ bool _listEquals<T>(List<T> a, List<T> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;
-  }
-  return true;
-}
-
-bool _mapEquals<K, V>(Map<K, V> a, Map<K, V> b) {
-  if (a.length != b.length) return false;
-  for (final entry in a.entries) {
-    if (!b.containsKey(entry.key) || b[entry.key] != entry.value) return false;
   }
   return true;
 }
