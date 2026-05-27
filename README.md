@@ -73,10 +73,11 @@ Use `--output` to choose `human`, `benchmarkjs`, or `jsonl` output:
 dart run benchmark_test --output jsonl test/benchmarks_test.dart
 ```
 
-Pass supported test selection arguments after `--`:
+Filter benchmarks by name on the CLI:
 
 ```sh
-dart run benchmark_test test/benchmarks_test.dart -- -n parse
+dart run benchmark_test --name parse test/benchmarks_test.dart
+dart run benchmark_test --plain-name "parse json" test/benchmarks_test.dart
 ```
 
 ### The `benchmark` method
@@ -188,7 +189,7 @@ extra code lenses that run through `benchmark_test` instead, so benchmarks are
     },
     "customTool": "dart",
     "customToolReplacesArgs": 5,
-    "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--"]
+    "toolArgs": ["run", "benchmark_test", "--compiler", "jit"]
   },
   {
     "name": "Update baseline",
@@ -200,19 +201,17 @@ extra code lenses that run through `benchmark_test` instead, so benchmarks are
     "env": {"BENCHMARK_UPDATE_BASELINE": "true"},
     "customTool": "dart",
     "customToolReplacesArgs": 5,
-    "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--"]
+    "toolArgs": ["run", "benchmark_test", "--compiler", "jit"]
   }
 ]
 ```
 
-Use `"for": ["run-test"]` so the Dart extension runs benchmarks without
-starting a debug session. The `benchmark_test` CLI runs benchmarks in a
-separate VM with assertions disabled (JIT only here via `--compiler jit`).
+Use `"for": ["run-test"]` only (not `debug-test`). The `benchmark_test` CLI
+runs benchmarks in a separate VM with assertions disabled (JIT only here via
+`--compiler jit`). Debug/VM-service flags are not used.
 
 `customToolReplacesArgs: 5` removes the default `dart test` tool arguments so
-`toolArgs` can invoke `dart run benchmark_test` instead. The trailing `--`
-passes test selection arguments (paths, `-n`, and so on) from the code lens to
-the benchmark runner.
+`toolArgs` can invoke `dart run benchmark_test` instead. 
 
 **Run benchmark** and **Update baseline** both use the assert-free runner; they
 differ only in whether baselines are updated. **Run benchmark** compares against

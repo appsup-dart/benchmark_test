@@ -1,5 +1,6 @@
 import 'package:args/args.dart';
 
+import '../direct_runner/benchmark_test_name_filter.dart';
 import 'benchmark_cli_config.dart';
 import 'benchmark_compile_type.dart';
 
@@ -27,10 +28,27 @@ ArgParser createBenchmarkArgParser() {
       help: 'Benchmark output format.',
       valueHelp: 'format',
     )
+    ..addOption(
+      'name',
+      abbr: 'n',
+      help: 'Run only benchmarks whose names match this pattern.',
+      valueHelp: 'pattern',
+    )
+    ..addOption(
+      'plain-name',
+      abbr: 'N',
+      help:
+          'Run only benchmarks whose names contain this plain-text substring.',
+      valueHelp: 'name',
+    )
     ..addFlag(
       'enable-asserts',
       help: 'Run benchmark tests with Dart assertions enabled.',
       negatable: false,
+    )
+    ..addFlag(
+      'run-skipped',
+      help: 'Run skipped tests instead of skipping them.',
     )
     ..addFlag(
       'help',
@@ -44,21 +62,11 @@ BenchmarkCliConfig parseBenchmarkCliArguments(
   ArgParser parser,
   List<String> arguments,
 ) {
-  final separatorIndex = arguments.indexOf('--');
-  final cliArguments = separatorIndex == -1
-      ? arguments
-      : arguments.take(separatorIndex).toList(growable: false);
-  final testRunnerArguments = separatorIndex == -1
-      ? const <String>[]
-      : arguments.skip(separatorIndex + 1).toList(growable: false);
-
   final ArgResults results;
   try {
-    results = parser.parse(cliArguments);
+    results = parser.parse(arguments);
   } on FormatException catch (error) {
-    return BenchmarkCliConfig.error(
-      '${error.message}. Pass dart test options after `--`.',
-    );
+    return BenchmarkCliConfig.error(error.message);
   }
 
   if (results.flag('help')) {
@@ -72,14 +80,32 @@ BenchmarkCliConfig parseBenchmarkCliArguments(
   );
   if (error != null) return BenchmarkCliConfig.error(error);
 
+  final plainName = results.option('plain-name');
+  final name = results.option('name');
+  if (plainName != null && name != null) {
+    return BenchmarkCliConfig.error(
+      'Cannot use both --name and --plain-name.',
+    );
+  }
+
+  final BenchmarkNameFilter? nameFilter;
+  if (plainName != null) {
+    nameFilter = BenchmarkPlainNameFilter(plainName);
+  } else if (name != null) {
+    nameFilter = BenchmarkPatternNameFilter(name);
+  } else {
+    nameFilter = null;
+  }
+
   return BenchmarkCliConfig(
     compileTypes: compileTypes.isEmpty
         ? BenchmarkCompileType.values
         : List.unmodifiable(compileTypes),
     enableAsserts: results.flag('enable-asserts'),
+    runSkipped: results.flag('run-skipped'),
     outputFormat: results.option('output'),
     paths: List.unmodifiable(results.rest),
-    testRunnerArguments: testRunnerArguments,
+    nameFilter: nameFilter,
   );
 }
 
@@ -88,7 +114,7 @@ String benchmarkCliUsage(ArgParser parser) {
 Run benchmark tests for one or more Dart compile types.
 
 Usage:
-  dart run benchmark_test [options] [test-path ...] [-- <dart test args>]
+  dart run benchmark_test [options] [test-path ...]
 
 Options:
 ${parser.usage}
@@ -98,9 +124,10 @@ Default output format: human.
 
 Examples:
   dart run benchmark_test test/benchmarks_test.dart
-  dart run benchmark_test --compile jit -- -n parse
+  dart run benchmark_test --compile jit --name parse test/benchmarks_test.dart
   dart run benchmark_test --output jsonl test/benchmarks_test.dart
   dart run benchmark_test --enable-asserts test/benchmarks_test.dart
-  dart run benchmark_test -c jit,aot test/benchmarks_test.dart -- --reporter expanded
+  dart run benchmark_test --run-skipped test/benchmarks_test.dart
+  dart run benchmark_test -c jit,aot test/benchmarks_test.dart
 ''';
 }

@@ -33,7 +33,11 @@ class DirectRunner {
       try {
         final bootstrap = File('${runDir.path}/benchmark_direct_runner.dart');
         await bootstrap.writeAsString(
-          _sourceGenerator.generate(testFiles, invocation.nameFilter),
+          _sourceGenerator.generate(
+            testFiles,
+            invocation.nameFilter,
+            runSkipped: invocation.runSkipped,
+          ),
         );
 
         if (invocation.compiler == 'exe') {
@@ -90,23 +94,5 @@ Future<int> runBenchmarkTestInvocation(
   return (runner ?? const DirectRunner()).run(
     invocation,
     environment: environment,
-  );
-}
-
-Future<int> runDartTest(
-  List<String> arguments, {
-  Map<String, String>? environment,
-  DirectRunner? runner,
-}) async {
-  final invocation = BenchmarkTestInvocation.parse(arguments);
-  if (invocation.error != null) {
-    stderr.writeln(invocation.error);
-    return 64;
-  }
-
-  return runBenchmarkTestInvocation(
-    invocation,
-    environment: environment,
-    runner: runner,
   );
 }

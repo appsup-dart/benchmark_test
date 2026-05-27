@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:benchmark_test/src/cli.dart';
+import 'package:benchmark_test/src/direct_runner/benchmark_test_invocation.dart';
+import 'package:benchmark_test/src/direct_runner/benchmark_test_name_filter.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -17,21 +19,23 @@ void main() {
       expect(exitCode, 0);
       expect(runner.calls, [
         _RunCall(
-          arguments: const [
-            '--platform',
-            'vm',
-            '--compiler',
-            'kernel',
-          ],
+          invocation: const BenchmarkTestInvocation(
+            compiler: 'kernel',
+            enableAsserts: false,
+            runSkipped: false,
+            paths: [],
+            nameFilter: null,
+          ),
           environment: const {'BENCHMARK_COMPILE_TYPE': 'jit'},
         ),
         _RunCall(
-          arguments: const [
-            '--platform',
-            'vm',
-            '--compiler',
-            'exe',
-          ],
+          invocation: const BenchmarkTestInvocation(
+            compiler: 'exe',
+            enableAsserts: false,
+            runSkipped: false,
+            paths: [],
+            nameFilter: null,
+          ),
           environment: const {'BENCHMARK_COMPILE_TYPE': 'aot'},
         ),
       ]);
@@ -45,42 +49,26 @@ void main() {
           '--compile',
           'jit',
           '--compile=aot,jit',
-          'test/benchmarks_test.dart',
-          '--',
-          '-n',
+          '--name',
           'parse json',
+          'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
         printStatus: (_) {},
       );
 
       expect(exitCode, 0);
-      expect(runner.calls, [
-        _RunCall(
-          arguments: const [
-            '--platform',
-            'vm',
-            '--compiler',
-            'kernel',
-            'test/benchmarks_test.dart',
-            '-n',
-            'parse json',
-          ],
-          environment: const {'BENCHMARK_COMPILE_TYPE': 'jit'},
+      expect(runner.calls.first.invocation.compiler, 'kernel');
+      expect(
+          runner.calls.first.invocation.paths, ['test/benchmarks_test.dart']);
+      expect(
+        runner.calls.first.invocation.nameFilter,
+        isA<BenchmarkPatternNameFilter>().having(
+          (filter) => filter.pattern,
+          'pattern',
+          'parse json',
         ),
-        _RunCall(
-          arguments: const [
-            '--platform',
-            'vm',
-            '--compiler',
-            'exe',
-            'test/benchmarks_test.dart',
-            '-n',
-            'parse json',
-          ],
-          environment: const {'BENCHMARK_COMPILE_TYPE': 'aot'},
-        ),
-      ]);
+      );
     });
 
     test('passes output format through the benchmark environment', () async {
@@ -99,21 +87,10 @@ void main() {
       );
 
       expect(exitCode, 0);
-      expect(runner.calls, [
-        _RunCall(
-          arguments: const [
-            '--platform',
-            'vm',
-            '--compiler',
-            'kernel',
-            'test/benchmarks_test.dart',
-          ],
-          environment: const {
-            'BENCHMARK_COMPILE_TYPE': 'jit',
-            'BENCHMARK_OUTPUT': 'jsonl',
-          },
-        ),
-      ]);
+      expect(runner.calls.single.environment, {
+        'BENCHMARK_COMPILE_TYPE': 'jit',
+        'BENCHMARK_OUTPUT': 'jsonl',
+      });
     });
 
     test('passes assertion opt-in to the benchmark runner', () async {
@@ -131,19 +108,41 @@ void main() {
       );
 
       expect(exitCode, 0);
-      expect(runner.calls, [
-        _RunCall(
-          arguments: const [
-            '--benchmark-test-enable-asserts',
-            '--platform',
-            'vm',
-            '--compiler',
-            'kernel',
-            'test/benchmarks_test.dart',
-          ],
-          environment: const {'BENCHMARK_COMPILE_TYPE': 'jit'},
-        ),
-      ]);
+      expect(runner.calls.single.invocation.enableAsserts, isTrue);
+    });
+
+    test('passes run-skipped to the benchmark runner', () async {
+      final runner = _RecordingRunner();
+
+      final exitCode = await runBenchmarkCli(
+        const [
+          '--compile',
+          'jit',
+          '--run-skipped',
+          'test/benchmarks_test.dart',
+        ],
+        runDartTest: runner.call,
+        printStatus: (_) {},
+      );
+
+      expect(exitCode, 0);
+      expect(runner.calls.single.invocation.runSkipped, isTrue);
+    });
+
+    test('runs skipped tests when --run-skipped is set', () async {
+      final testFile = _writeSkippedTestFile();
+
+      final skippedExitCode = await runBenchmarkCli(
+        ['--compile', 'jit', testFile.path],
+        printStatus: (_) {},
+      );
+      expect(skippedExitCode, 0);
+
+      final runSkippedExitCode = await runBenchmarkCli(
+        ['--compile', 'jit', '--run-skipped', testFile.path],
+        printStatus: (_) {},
+      );
+      expect(runSkippedExitCode, 1);
     });
 
     test('runs benchmark files with assertions disabled by default', () async {
@@ -208,6 +207,21 @@ void main() {
   });
 }
 
+File _writeSkippedTestFile() {
+  final temp = Directory.systemTemp.createTempSync('benchmark_test_cli_');
+  addTearDown(() => temp.deleteSync(recursive: true));
+
+  return File('${temp.path}/skipped_test.dart')..writeAsStringSync('''
+import 'package:test/test.dart';
+
+void main() {
+  test('skipped', () {
+    throw StateError('Skipped test ran.');
+  }, skip: true);
+}
+''');
+}
+
 File _writeAssertSensitiveBenchmark() {
   final temp = Directory.systemTemp.createTempSync('benchmark_test_cli_');
   addTearDown(() => temp.deleteSync(recursive: true));
@@ -240,12 +254,12 @@ class _RecordingRunner {
   _RecordingRunner({this.exitCodes = const []});
 
   Future<int> call(
-    List<String> arguments, {
+    BenchmarkTestInvocation invocation, {
     Map<String, String>? environment,
   }) async {
     calls.add(
       _RunCall(
-        arguments: List.unmodifiable(arguments),
+        invocation: invocation,
         environment: Map.unmodifiable(environment ?? const {}),
       ),
     );
@@ -255,24 +269,32 @@ class _RecordingRunner {
 }
 
 class _RunCall {
-  final List<String> arguments;
+  final BenchmarkTestInvocation invocation;
   final Map<String, String> environment;
 
   const _RunCall({
-    required this.arguments,
+    required this.invocation,
     required this.environment,
   });
 
   @override
   bool operator ==(Object other) {
     return other is _RunCall &&
-        _listEquals(arguments, other.arguments) &&
+        invocation.compiler == other.invocation.compiler &&
+        invocation.enableAsserts == other.invocation.enableAsserts &&
+        invocation.runSkipped == other.invocation.runSkipped &&
+        _listEquals(invocation.paths, other.invocation.paths) &&
+        invocation.nameFilter == other.invocation.nameFilter &&
         _mapEquals(environment, other.environment);
   }
 
   @override
   int get hashCode => Object.hash(
-        Object.hashAll(arguments),
+        invocation.compiler,
+        invocation.enableAsserts,
+        invocation.runSkipped,
+        Object.hashAll(invocation.paths),
+        invocation.nameFilter,
         Object.hashAll(
           environment.entries
               .map((entry) => Object.hash(entry.key, entry.value)),
@@ -281,7 +303,7 @@ class _RunCall {
 
   @override
   String toString() {
-    return '_RunCall(arguments: $arguments, environment: $environment)';
+    return '_RunCall(invocation: $invocation, environment: $environment)';
   }
 }
 

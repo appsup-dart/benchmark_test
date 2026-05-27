@@ -5,7 +5,7 @@ import '../direct_runner/direct_runner.dart' as direct_runner;
 import 'benchmark_cli_parser.dart';
 
 typedef DartTestRunner = Future<int> Function(
-  List<String> arguments, {
+  BenchmarkTestInvocation invocation, {
   Map<String, String>? environment,
 });
 
@@ -30,20 +30,19 @@ Future<int> runBenchmarkCli(
     return 64;
   }
 
-  final runner = runDartTest ?? direct_runner.runDartTest;
+  final runner = runDartTest ?? direct_runner.runBenchmarkTestInvocation;
+
   for (final compileType in config.compileTypes) {
     printStatus('Running benchmarks with ${compileType.label}...');
 
     final exitCode = await runner(
-      [
-        if (config.enableAsserts) enableAssertsRunnerArgument,
-        '--platform',
-        'vm',
-        '--compiler',
-        compileType.testCompiler,
-        ...config.paths,
-        ...config.testRunnerArguments,
-      ],
+      BenchmarkTestInvocation(
+        compiler: compileType.testCompiler,
+        enableAsserts: config.enableAsserts,
+        runSkipped: config.runSkipped,
+        paths: config.paths,
+        nameFilter: config.nameFilter,
+      ),
       environment: {
         'BENCHMARK_COMPILE_TYPE': compileType.label,
         if (config.outputFormat != null)
