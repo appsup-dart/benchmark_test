@@ -1,8 +1,11 @@
 import 'dart:io';
 
 import 'package:benchmark_test/src/cli.dart';
+import 'package:benchmark_test/src/cli/benchmark_baseline_updater.dart';
 import 'package:benchmark_test/src/direct_runner/benchmark_test_invocation.dart';
 import 'package:benchmark_test/src/direct_runner/benchmark_test_name_filter.dart';
+import 'package:benchmark_test/src/direct_runner/process_runner.dart';
+import 'package:benchmark_test/src/benchmark/benchmark_baseline_store.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -27,6 +30,7 @@ void main() {
             nameFilter: null,
           ),
           environment: const {'BENCHMARK_COMPILE_TYPE': 'jit'},
+          captureStdout: false,
         ),
         _RunCall(
           invocation: const BenchmarkTestInvocation(
@@ -37,6 +41,7 @@ void main() {
             nameFilter: null,
           ),
           environment: const {'BENCHMARK_COMPILE_TYPE': 'aot'},
+          captureStdout: false,
         ),
       ]);
     });
@@ -127,6 +132,38 @@ void main() {
 
       expect(exitCode, 0);
       expect(runner.calls.single.invocation.runSkipped, isTrue);
+    });
+
+    test('updates baselines from captured jsonl runner output', () async {
+      final temp = Directory.systemTemp.createTempSync('benchmark_test_cli_');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final baselineFile = File('${temp.path}/baselines.json');
+      final runner = _RecordingRunner(stdout: _sampleBenchmarkJsonl);
+      final output = <String>[];
+
+      final exitCode = await runBenchmarkCli(
+        const [
+          '--compile',
+          'jit',
+          '--update-baseline',
+          'test/benchmarks_test.dart',
+        ],
+        runDartTest: runner.call,
+        printStatus: (_) {},
+        baselineUpdater: BenchmarkBaselineUpdater(
+          baselineStore: BenchmarkBaselineStore(baselineFile),
+          printLine: output.add,
+        ),
+      );
+
+      expect(exitCode, 0);
+      expect(runner.calls.single.captureStdout, isTrue);
+      expect(runner.calls.single.environment, {
+        'BENCHMARK_COMPILE_TYPE': 'jit',
+        'BENCHMARK_OUTPUT': 'jsonl',
+      });
+      expect(baselineFile.existsSync(), isTrue);
+      expect(output.last, contains('Baseline updated: ${baselineFile.path}'));
     });
 
     test('runs skipped tests when --run-skipped is set', () async {
@@ -247,34 +284,47 @@ void main() {
 ''');
 }
 
+const _sampleBenchmarkJsonl = '''
+{"formatVersion":1,"name":"sample benchmark","throughput":{"value":42,"unit":"ops/sec"},"statistics":{"relativeMarginOfError":1.5,"samples":10},"latency":{"mean":1000,"unit":"microseconds"}}
+''';
+
 class _RecordingRunner {
   final List<int> exitCodes;
+  final String stdout;
   final calls = <_RunCall>[];
 
-  _RecordingRunner({this.exitCodes = const []});
+  _RecordingRunner({this.exitCodes = const [], this.stdout = ''});
 
-  Future<int> call(
+  Future<ProcessRunResult> call(
     BenchmarkTestInvocation invocation, {
     Map<String, String>? environment,
+    bool captureStdout = false,
   }) async {
     calls.add(
       _RunCall(
         invocation: invocation,
         environment: Map.unmodifiable(environment ?? const {}),
+        captureStdout: captureStdout,
       ),
     );
-    if (exitCodes.length >= calls.length) return exitCodes[calls.length - 1];
-    return 0;
+    final exitCode =
+        exitCodes.length >= calls.length ? exitCodes[calls.length - 1] : 0;
+    return ProcessRunResult(
+      exitCode: exitCode,
+      stdout: captureStdout ? stdout : '',
+    );
   }
 }
 
 class _RunCall {
   final BenchmarkTestInvocation invocation;
   final Map<String, String> environment;
+  final bool captureStdout;
 
   const _RunCall({
     required this.invocation,
     required this.environment,
+    required this.captureStdout,
   });
 
   @override
@@ -285,6 +335,7 @@ class _RunCall {
         invocation.runSkipped == other.invocation.runSkipped &&
         _listEquals(invocation.paths, other.invocation.paths) &&
         invocation.nameFilter == other.invocation.nameFilter &&
+        captureStdout == other.captureStdout &&
         _mapEquals(environment, other.environment);
   }
 
@@ -295,6 +346,7 @@ class _RunCall {
         invocation.runSkipped,
         Object.hashAll(invocation.paths),
         invocation.nameFilter,
+        captureStdout,
         Object.hashAll(
           environment.entries
               .map((entry) => Object.hash(entry.key, entry.value)),

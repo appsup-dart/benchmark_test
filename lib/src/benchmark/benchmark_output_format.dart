@@ -33,7 +33,6 @@ enum BenchmarkOutputFormat {
   String format(
     BenchmarkResult result, {
     required BenchmarkBaselineStore baselineStore,
-    required bool updateBaseline,
   }) {
     switch (this) {
       case human:
@@ -44,12 +43,7 @@ enum BenchmarkOutputFormat {
           '  ${result.runs} runs sampled',
           '  ${result.averageDuration} average duration',
         ];
-        lines.addAll(
-          baselineStore.formatComparison(
-            result,
-            updateBaseline: updateBaseline,
-          ),
-        );
+        lines.addAll(baselineStore.formatComparison(result));
         return lines.join('\n');
       case benchmarkjs:
         return '${result.name} x ${result.formattedOperationsPerSecond} '

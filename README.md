@@ -127,10 +127,10 @@ Human output compares each benchmark against the baseline stored in `build/bench
 dart test test/benchmarks_test.dart
 ```
 
-Create or overwrite the baseline by setting `BENCHMARK_UPDATE_BASELINE`:
+Create or overwrite the baseline with the benchmark CLI:
 
 ```sh
-BENCHMARK_UPDATE_BASELINE=true dart test test/benchmarks_test.dart
+dart run benchmark_test --update-baseline test/benchmarks_test.dart
 ```
 
 The comparison uses throughput, so higher `ops/sec` is an improvement and lower `ops/sec` is a regression. Changes of at least 5% are marked with `✅` for improvements or `⚠️` for regressions. Improvements and regressions are colored when ANSI colors are supported.
@@ -198,10 +198,9 @@ extra code lenses that run through `benchmark_test` instead, so benchmarks are
     "codeLens": {
       "for": ["run-test"]
     },
-    "env": {"BENCHMARK_UPDATE_BASELINE": "true"},
     "customTool": "dart",
     "customToolReplacesArgs": 5,
-    "toolArgs": ["run", "benchmark_test", "--compiler", "jit"]
+    "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--update-baseline"]
   }
 ]
 ```
@@ -215,8 +214,8 @@ runs benchmarks in a separate VM with assertions disabled (JIT only here via
 
 **Run benchmark** and **Update baseline** both use the assert-free runner; they
 differ only in whether baselines are updated. **Run benchmark** compares against
-existing baselines. **Update baseline** sets `BENCHMARK_UPDATE_BASELINE` to
-`true` (any casing) so results are written to `build/benchmark_test/baselines.json`.
+existing baselines. **Update baseline** passes `--update-baseline` so results are
+written to `build/benchmark_test/baselines.json`.
 
 
 ### Profile code from VS Code

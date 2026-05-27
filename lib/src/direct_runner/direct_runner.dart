@@ -3,7 +3,7 @@ import 'dart:io';
 import 'benchmark_test_discovery.dart';
 import 'benchmark_test_invocation.dart';
 import 'direct_runner_source_generator.dart';
-import 'process_runner.dart';
+import 'process_runner.dart' show ProcessRunResult, ProcessRunner;
 
 class DirectRunner {
   const DirectRunner({
@@ -19,9 +19,10 @@ class DirectRunner {
   final DirectRunnerSourceGenerator _sourceGenerator;
   final ProcessRunner _processRunner;
 
-  Future<int> run(
+  Future<ProcessRunResult> run(
     BenchmarkTestInvocation invocation, {
     Map<String, String>? environment,
+    bool captureStdout = false,
   }) async {
     try {
       final testFiles = _discovery.collect(invocation.paths);
@@ -44,7 +45,7 @@ class DirectRunner {
           final executable = File(
             '${runDir.path}/benchmark_direct_runner${Platform.isWindows ? '.exe' : ''}',
           );
-          final compileExitCode = await _processRunner.start(
+          final compileResult = await _processRunner.start(
             Platform.resolvedExecutable,
             [
               'compile',
@@ -56,12 +57,13 @@ class DirectRunner {
             ],
             environment: environment,
           );
-          if (compileExitCode != 0) return compileExitCode;
+          if (compileResult.exitCode != 0) return compileResult;
 
           return await _processRunner.start(
             executable.path,
             const [],
             environment: environment,
+            captureStdout: captureStdout,
           );
         }
 
@@ -72,27 +74,30 @@ class DirectRunner {
             bootstrap.path,
           ],
           environment: environment,
+          captureStdout: captureStdout,
         );
       } finally {
         await runDir.delete(recursive: true);
       }
     } on FormatException catch (error) {
       stderr.writeln(error.message);
-      return 64;
+      return const ProcessRunResult(exitCode: 64);
     } on FileSystemException catch (error) {
       stderr.writeln('${error.message}: ${error.path}');
-      return 66;
+      return const ProcessRunResult(exitCode: 66);
     }
   }
 }
 
-Future<int> runBenchmarkTestInvocation(
+Future<ProcessRunResult> runBenchmarkTestInvocation(
   BenchmarkTestInvocation invocation, {
   Map<String, String>? environment,
+  bool captureStdout = false,
   DirectRunner? runner,
 }) {
   return (runner ?? const DirectRunner()).run(
     invocation,
     environment: environment,
+    captureStdout: captureStdout,
   );
 }

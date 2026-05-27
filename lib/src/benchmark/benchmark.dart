@@ -24,8 +24,8 @@ export 'benchmark_iteration_hooks.dart' show setUpEach, tearDownEach;
 /// `human` is used.
 ///
 /// The human output format compares results against the baseline stored in
-/// `build/benchmark_test/baselines.json`. Set `BENCHMARK_UPDATE_BASELINE` to
-/// `true` to create or overwrite the baseline.
+/// `build/benchmark_test/baselines.json`. Use `--update-baseline` on the
+/// benchmark CLI to create or overwrite the baseline.
 ///
 /// If the environment variable `PROFILE_MODE` is set to `true`, the test will
 /// pause at the beginning and end of the test to allow the user to start and
@@ -64,7 +64,6 @@ void benchmark(
         benchmarkEnvironment.outputFormat.format(
           result,
           baselineStore: benchmarkEnvironment.baselineStore,
-          updateBaseline: benchmarkEnvironment.updateBenchmarkBaseline,
         ),
       );
 

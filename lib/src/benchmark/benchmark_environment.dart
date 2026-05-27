@@ -9,18 +9,13 @@ final benchmarkEnvironment = BenchmarkEnvironment._();
 
 class BenchmarkEnvironment {
   BenchmarkEnvironment._()
-      : updateBenchmarkBaseline =
-            (Platform.environment['BENCHMARK_UPDATE_BASELINE'] ?? '')
-                    .toLowerCase() ==
-                'true',
-        outputFormat = BenchmarkOutputFormat.fromEnvironment(
+      : outputFormat = BenchmarkOutputFormat.fromEnvironment(
           Platform.environment['BENCHMARK_OUTPUT'],
         ),
         baselineStore = BenchmarkBaselineStore(
           File('build/benchmark_test/baselines.json'),
         );
 
-  final bool updateBenchmarkBaseline;
   final BenchmarkOutputFormat outputFormat;
   final BenchmarkBaselineStore baselineStore;
 }

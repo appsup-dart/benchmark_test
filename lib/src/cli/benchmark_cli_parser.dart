@@ -51,6 +51,11 @@ ArgParser createBenchmarkArgParser() {
       help: 'Run skipped tests instead of skipping them.',
     )
     ..addFlag(
+      'update-baseline',
+      help: 'Write benchmark results to build/benchmark_test/baselines.json.',
+      negatable: false,
+    )
+    ..addFlag(
       'help',
       abbr: 'h',
       help: 'Show this help.',
@@ -103,6 +108,7 @@ BenchmarkCliConfig parseBenchmarkCliArguments(
         : List.unmodifiable(compileTypes),
     enableAsserts: results.flag('enable-asserts'),
     runSkipped: results.flag('run-skipped'),
+    updateBaseline: results.flag('update-baseline'),
     outputFormat: results.option('output'),
     paths: List.unmodifiable(results.rest),
     nameFilter: nameFilter,
@@ -128,6 +134,7 @@ Examples:
   dart run benchmark_test --output jsonl test/benchmarks_test.dart
   dart run benchmark_test --enable-asserts test/benchmarks_test.dart
   dart run benchmark_test --run-skipped test/benchmarks_test.dart
+  dart run benchmark_test --update-baseline test/benchmarks_test.dart
   dart run benchmark_test -c jit,aot test/benchmarks_test.dart
 ''';
 }

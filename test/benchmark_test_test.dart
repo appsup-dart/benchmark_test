@@ -8,11 +8,15 @@ void main() {
     test('can update and compare against a human baseline', () {
       _preserveBaseline();
 
-      var update = _runBenchmarkProcess(
-        'delay 10ms baseline fixture',
-        environment: {
-          'BENCHMARK_UPDATE_BASELINE': 'true',
-        },
+      var update = _runBenchmarkCli(
+        const [
+          '--compile',
+          'jit',
+          '--update-baseline',
+          '--name',
+          '^delay 10ms baseline fixture\$',
+          'test/src/benchmark.dart',
+        ],
       );
 
       expect(update.stdout, contains('Benchmark: delay 10ms baseline fixture'));
@@ -144,6 +148,13 @@ ProcessResult _runBenchmarkProcess(
       '^${RegExp.escape(name)}\$',
     ],
     environment: environment,
+  );
+}
+
+ProcessResult _runBenchmarkCli(List<String> arguments) {
+  return Process.runSync(
+    Platform.resolvedExecutable,
+    ['run', 'benchmark_test', ...arguments],
   );
 }
 

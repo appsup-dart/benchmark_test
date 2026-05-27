@@ -5,6 +5,7 @@ class BenchmarkCliConfig {
   final List<BenchmarkCompileType> compileTypes;
   final bool enableAsserts;
   final bool runSkipped;
+  final bool updateBaseline;
   final String? outputFormat;
   final List<String> paths;
   final BenchmarkNameFilter? nameFilter;
@@ -15,6 +16,7 @@ class BenchmarkCliConfig {
     required this.compileTypes,
     required this.enableAsserts,
     required this.runSkipped,
+    required this.updateBaseline,
     required this.outputFormat,
     required this.paths,
     required this.nameFilter,
@@ -25,6 +27,7 @@ class BenchmarkCliConfig {
       : compileTypes = const [],
         enableAsserts = false,
         runSkipped = false,
+        updateBaseline = false,
         outputFormat = null,
         paths = const [],
         nameFilter = null,
@@ -35,6 +38,7 @@ class BenchmarkCliConfig {
       : compileTypes = const [],
         enableAsserts = false,
         runSkipped = false,
+        updateBaseline = false,
         outputFormat = null,
         paths = const [],
         nameFilter = null,

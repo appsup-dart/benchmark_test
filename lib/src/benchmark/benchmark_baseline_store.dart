@@ -14,10 +14,15 @@ class BenchmarkBaselineStore {
 
   BenchmarkBaselineStore(this.file);
 
-  List<String> formatComparison(
-    BenchmarkResult result, {
-    required bool updateBaseline,
-  }) {
+  void updateBenchmarks(Iterable<BenchmarkResult> results) {
+    final baselines = _readBaselines();
+    for (final result in results) {
+      baselines[result.name] = result;
+    }
+    _writeBaselines(baselines);
+  }
+
+  List<String> formatComparison(BenchmarkResult result) {
     var baselines = _readBaselines();
     var baseline = baselines[result.name];
     var lines = <String>[];
@@ -25,7 +30,7 @@ class BenchmarkBaselineStore {
     if (baseline == null) {
       lines.add(
         ansi.yellow(
-          '  Baseline: none (set BENCHMARK_UPDATE_BASELINE=true to create one)',
+          '  Baseline: none (use --update-baseline to create one)',
         ),
       );
     } else {
@@ -34,16 +39,6 @@ class BenchmarkBaselineStore {
         '(${baseline.averageDuration} average duration)',
       );
       lines.add(formatBenchmarkChange(result, baseline));
-    }
-
-    if (updateBaseline) {
-      baselines[result.name] = result;
-      _writeBaselines(baselines);
-      lines.add(
-        ansi.yellow(
-          '  Baseline updated: ${file.path}',
-        ),
-      );
     }
 
     return lines;
