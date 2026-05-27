@@ -18,7 +18,11 @@ extension BenchmarkNameFilterCodegen on BenchmarkNameFilter? {
   String get namePatternSource {
     final filter = this;
     if (filter is BenchmarkPatternNameFilter) {
-      return 'RegExp(${jsonEncode(filter.pattern)})';
+      // Properly encode the pattern for use within a Dart raw string literal.
+      // We use r'''...''' as the most general raw string solution,
+      // and escape only triple-quotes if they appear.
+      final pattern = filter.pattern.replaceAll("'''", r"\'\'\'");
+      return "RegExp(r'''$pattern''')";
     }
     return 'null';
   }

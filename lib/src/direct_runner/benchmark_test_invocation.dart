@@ -98,6 +98,7 @@ class BenchmarkTestInvocation {
       } else if (argument == '--color' || argument == '--no-color') {
         // The direct runner currently uses the expanded reporter. These flags
         // are accepted for compatibility with common `dart test` invocations.
+      } else if (argument == '--run-skipped') {
       } else if (argument.startsWith('-')) {
         return BenchmarkTestInvocation.error(
           'Unsupported dart test argument `$argument` for assert-free benchmarks.',

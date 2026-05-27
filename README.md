@@ -170,6 +170,56 @@ void main() {
 
 When called inside a nested `group`, they apply only to benchmarks within that group.
 
+### Run benchmarks from VS Code
+
+The default **Run** code lens uses `dart test`, which runs with Dart assertions
+enabled. That can skew benchmark timings. Add the configurations below to get
+extra code lenses that run through `benchmark_test` instead, so benchmarks are
+**assert-free** (and JIT-only in this example).
+
+```json
+[
+  {
+    "name": "Run benchmark",
+    "request": "launch",
+    "type": "dart",
+    "codeLens": {
+      "for": ["run-test"]
+    },
+    "customTool": "dart",
+    "customToolReplacesArgs": 5,
+    "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--"]
+  },
+  {
+    "name": "Update baseline",
+    "request": "launch",
+    "type": "dart",
+    "codeLens": {
+      "for": ["run-test"]
+    },
+    "env": {"BENCHMARK_UPDATE_BASELINE": "true"},
+    "customTool": "dart",
+    "customToolReplacesArgs": 5,
+    "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--"]
+  }
+]
+```
+
+Use `"for": ["run-test"]` so the Dart extension runs benchmarks without
+starting a debug session. The `benchmark_test` CLI runs benchmarks in a
+separate VM with assertions disabled (JIT only here via `--compiler jit`).
+
+`customToolReplacesArgs: 5` removes the default `dart test` tool arguments so
+`toolArgs` can invoke `dart run benchmark_test` instead. The trailing `--`
+passes test selection arguments (paths, `-n`, and so on) from the code lens to
+the benchmark runner.
+
+**Run benchmark** and **Update baseline** both use the assert-free runner; they
+differ only in whether baselines are updated. **Run benchmark** compares against
+existing baselines. **Update baseline** sets `BENCHMARK_UPDATE_BASELINE` to
+`true` (any casing) so results are written to `build/benchmark_test/baselines.json`.
+
+
 ### Profile code from VS Code
 
 To profile a benchmark with the Dart CPU profiler, add a launch configuration to `.vscode/launch.json`:
