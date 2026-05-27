@@ -51,6 +51,14 @@ Or use the package CLI to run the same benchmarks for multiple compile types:
 dart run benchmark_test test/benchmarks_test.dart
 ```
 
+The CLI runs benchmarks with Dart assertions disabled by default so assertion
+checks do not affect benchmark timings. Use `--enable-asserts` to opt back in
+when you want assertion checks during a benchmark run:
+
+```sh
+dart run benchmark_test --enable-asserts test/benchmarks_test.dart
+```
+
 The CLI currently supports `jit` and `aot` and runs both by default. Use
 `--compile` to choose one or more compile types:
 
@@ -65,7 +73,7 @@ Use `--output` to choose `human`, `benchmarkjs`, or `jsonl` output:
 dart run benchmark_test --output jsonl test/benchmarks_test.dart
 ```
 
-Pass additional `dart test` arguments after `--`:
+Pass supported test selection arguments after `--`:
 
 ```sh
 dart run benchmark_test test/benchmarks_test.dart -- -n parse
@@ -218,7 +226,8 @@ The action runs the benchmark CLI once per compile type, converts the JSONL
 results to `github-action-benchmark` custom data, and commits benchmark history
 to the `gh-pages` branch. Results are stored as `customBiggerIsBetter`, with
 benchmark names suffixed by compile type, for example `parse json [jit]` and
-`parse json [aot]`.
+`parse json [aot]`. The action always runs with Dart assertions disabled to keep
+CI benchmark numbers representative.
 
 For Flutter packages, set `sdk` to `flutter` so the action installs Flutter and
 runs `flutter pub get` before invoking the benchmark CLI:
@@ -233,8 +242,8 @@ runs `flutter pub get` before invoking the benchmark CLI:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The benchmark CLI still runs VM benchmark tests through `dart test`, so the
-benchmark file should be runnable on the Dart VM.
+The benchmark CLI still runs VM benchmark tests, so the benchmark file should be
+runnable on the Dart VM.
 
 
 ## Sponsor

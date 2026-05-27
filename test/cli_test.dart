@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:benchmark_test/src/cli.dart';
 import 'package:test/test.dart';
 
@@ -114,6 +116,70 @@ void main() {
       ]);
     });
 
+    test('passes assertion opt-in to the benchmark runner', () async {
+      final runner = _RecordingRunner();
+
+      final exitCode = await runBenchmarkCli(
+        const [
+          '--compile',
+          'jit',
+          '--enable-asserts',
+          'test/benchmarks_test.dart',
+        ],
+        runDartTest: runner.call,
+        printStatus: (_) {},
+      );
+
+      expect(exitCode, 0);
+      expect(runner.calls, [
+        _RunCall(
+          arguments: const [
+            '--benchmark-test-enable-asserts',
+            '--platform',
+            'vm',
+            '--compiler',
+            'kernel',
+            'test/benchmarks_test.dart',
+          ],
+          environment: const {'BENCHMARK_COMPILE_TYPE': 'jit'},
+        ),
+      ]);
+    });
+
+    test('runs benchmark files with assertions disabled by default', () async {
+      final benchmarkFile = _writeAssertSensitiveBenchmark();
+
+      final exitCode = await runBenchmarkCli(
+        ['--compile', 'jit', benchmarkFile.path],
+        printStatus: (_) {},
+      );
+
+      expect(exitCode, 0);
+    });
+
+    test('runs aot benchmark files with assertions disabled by default',
+        () async {
+      final benchmarkFile = _writeAssertSensitiveBenchmark();
+
+      final exitCode = await runBenchmarkCli(
+        ['--compile', 'aot', benchmarkFile.path],
+        printStatus: (_) {},
+      );
+
+      expect(exitCode, 0);
+    }, timeout: const Timeout(Duration(seconds: 30)));
+
+    test('can opt in to assertions for benchmark files', () async {
+      final benchmarkFile = _writeAssertSensitiveBenchmark();
+
+      final exitCode = await runBenchmarkCli(
+        ['--compile', 'jit', '--enable-asserts', benchmarkFile.path],
+        printStatus: (_) {},
+      );
+
+      expect(exitCode, 1);
+    });
+
     test('stops after the first failing compile type', () async {
       final runner = _RecordingRunner(exitCodes: [2, 0]);
 
@@ -140,6 +206,31 @@ void main() {
       expect(errors.first, contains('Unsupported compile type `wasm`'));
     });
   });
+}
+
+File _writeAssertSensitiveBenchmark() {
+  final temp = Directory.systemTemp.createTempSync('benchmark_test_cli_');
+  addTearDown(() => temp.deleteSync(recursive: true));
+
+  return File('${temp.path}/assert_sensitive_benchmark_test.dart')
+    ..writeAsStringSync('''
+import 'package:benchmark_test/benchmark_test.dart';
+
+void main() {
+  benchmark(
+    'assert side effect',
+    () {
+      var assertionsEnabled = false;
+      assert(assertionsEnabled = true);
+      if (assertionsEnabled) {
+        throw StateError('Assertions were enabled.');
+      }
+    },
+    minDuration: const Duration(microseconds: 1),
+    minSamples: 2,
+  );
+}
+''');
 }
 
 class _RecordingRunner {

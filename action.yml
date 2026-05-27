@@ -23,7 +23,7 @@ inputs:
     required: false
     default: jit,aot
   dart-test-args:
-    description: Additional dart test arguments passed after --.
+    description: Additional benchmark test selection arguments passed after --.
     required: false
     default: ''
   name:
