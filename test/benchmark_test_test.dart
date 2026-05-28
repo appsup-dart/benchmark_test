@@ -114,6 +114,12 @@ void main() {
       expect(r[0], closeTo(10, 0.5));
       expect(r[2], 30);
     });
+
+    test('runs sampled counts measured iterations only', () {
+      var r = _runBenchmark('delay 1ms, minSamples 3');
+
+      expect(r[2], 3);
+    });
   });
 
   group('setUpEach', () {

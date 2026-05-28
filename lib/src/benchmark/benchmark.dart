@@ -17,7 +17,14 @@ export 'benchmark_profile_mode.dart' show isProfileMode;
 /// Creates a new benchmark test with the given [description] and [body].
 ///
 /// The test will execute [body] repeatedly until [minDuration] has elapsed and
-/// at least [minSamples] iterations have been run.
+/// at least [minSamples] measured iterations have been run.
+///
+/// A warmup phase runs before measured iterations. Warmup defaults to a single
+/// run and can be expanded with [warmupMinSamples] and [warmupMinDuration].
+///
+/// When [targetRme] is set, the benchmark keeps sampling after minimum
+/// thresholds are reached until the relative margin of error is at most
+/// [targetRme], or [maxSamples] is hit.
 ///
 /// The test will output the number of operations per second, the relative
 /// margin of error, and the number of runs sampled.
@@ -40,6 +47,10 @@ void benchmark(
   dynamic Function() body, {
   Duration minDuration = const Duration(seconds: 2),
   int minSamples = 5,
+  int warmupMinSamples = 1,
+  Duration warmupMinDuration = Duration.zero,
+  double? targetRme,
+  int? maxSamples,
   Timeout? timeout,
 }) =>
     test(description, () async {
@@ -52,6 +63,10 @@ void benchmark(
         body: body,
         minDuration: minDuration,
         minSamples: minSamples,
+        warmupMinSamples: warmupMinSamples,
+        warmupMinDuration: warmupMinDuration,
+        targetRme: targetRme,
+        maxSamples: maxSamples,
         setUps: benchmarkSetUpsEach,
         tearDowns: benchmarkTearDownsEach,
         name: TestHandle.current.name,

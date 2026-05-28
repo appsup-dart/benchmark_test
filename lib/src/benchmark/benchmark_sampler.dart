@@ -14,36 +14,70 @@ class BenchmarkSampler {
     required FutureOr<void> Function() body,
     required Duration minDuration,
     required int minSamples,
+    required int warmupMinSamples,
+    required Duration warmupMinDuration,
+    required double? targetRme,
+    required int? maxSamples,
     required List<FutureOr<void> Function()> setUps,
     required List<FutureOr<void> Function()> tearDowns,
     required String name,
     required String compiler,
   }) async {
+    if (minSamples < 1) {
+      throw ArgumentError.value(minSamples, 'minSamples', 'Must be >= 1.');
+    }
+    if (warmupMinSamples < 0) {
+      throw ArgumentError.value(
+        warmupMinSamples,
+        'warmupMinSamples',
+        'Must be >= 0.',
+      );
+    }
+    if (targetRme != null && targetRme <= 0) {
+      throw ArgumentError.value(targetRme, 'targetRme', 'Must be > 0.');
+    }
+    if (maxSamples != null && maxSamples < minSamples) {
+      throw ArgumentError.value(
+        maxSamples,
+        'maxSamples',
+        'Must be >= minSamples.',
+      );
+    }
+
     var i = 0;
     var sum = 0;
     var sum2 = 0;
 
-    var d = minDuration.inMicroseconds;
+    final d = minDuration.inMicroseconds;
+    final warmupDurationMicros = warmupMinDuration.inMicroseconds;
+    final warmupStopwatch = Stopwatch()..start();
+    var warmupIterations = 0;
 
-    var warmUp = true;
+    while (warmupIterations < warmupMinSamples ||
+        warmupStopwatch.elapsedMicroseconds < warmupDurationMicros) {
+      warmupIterations++;
+      for (var setup in setUps) {
+        await setup();
+      }
+      await body();
+      for (var teardown in tearDowns) {
+        await teardown();
+      }
+    }
 
-    while (sum < d || i < minSamples) {
+    while (true) {
       i++;
 
       for (var setup in setUps) {
         await setup();
       }
       final stopwatch = Stopwatch()..start();
-      if (warmUp) {
+      final previousTag = getCurrentTag();
+      _benchmarkBodyTag.makeCurrent();
+      try {
         await body();
-      } else {
-        final previousTag = getCurrentTag();
-        _benchmarkBodyTag.makeCurrent();
-        try {
-          await body();
-        } finally {
-          previousTag.makeCurrent();
-        }
+      } finally {
+        previousTag.makeCurrent();
       }
       stopwatch.stop();
       final v = stopwatch.elapsedMicroseconds;
@@ -51,40 +85,76 @@ class BenchmarkSampler {
         await teardown();
       }
 
-      if (warmUp) {
-        warmUp = false;
-        continue;
-      }
       sum += v;
       sum2 += v * v;
+
+      final reachedSampleCeiling = maxSamples != null && i >= maxSamples;
+      if (reachedSampleCeiling) break;
+      if (!_reachedRequiredMinimums(
+          sum: sum, runs: i, minDurationMicros: d, minSamples: minSamples)) {
+        continue;
+      }
+      if (targetRme == null) break;
+      if (i < 2) continue;
+
+      final statistics = _calculateStatistics(sum: sum, sum2: sum2, runs: i);
+      if (statistics.relativeMarginOfError <= targetRme) break;
     }
 
-    // Compute the sample mean (estimate of the population mean).
-    var mean = sum / i;
-    // Compute the sample variance (estimate of the population variance).
-    var variance = (sum2 - mean * mean * i) / (i - 1);
-    // Compute the sample standard deviation (estimate of the population standard deviation).
-    var sd = math.sqrt(variance);
-    // Compute the standard error of the mean (a.k.a. the standard deviation of the sampling distribution of the sample mean).
-    var sem = sd / math.sqrt(i);
-    // Compute the degrees of freedom.
-    var df = i - 1;
-    // Compute the critical value.
-    var critical =
-        studentTTable[df.round().toString()] ?? studentTTable['infinity']!;
-    // Compute the margin of error.
-    var moe = sem * critical;
-    // Compute the relative margin of error.
-    var rme = (moe / mean) * 100;
+    final statistics = _calculateStatistics(sum: sum, sum2: sum2, runs: i);
 
-    var hz = 1 / (sum / i) * 1000 * 1000;
+    final mean = statistics.mean;
+    final hz = mean == 0 ? double.infinity : 1000000 / mean;
     return BenchmarkResult(
       name: name,
       compiler: compiler,
       operationsPerSecond: hz,
-      relativeMarginOfError: rme,
+      relativeMarginOfError: statistics.relativeMarginOfError,
       runs: i,
-      averageDuration: Duration(microseconds: sum ~/ i),
+      averageDuration: Duration(
+        microseconds: mean.isFinite ? mean.round() : 0,
+      ),
     );
   }
+
+  bool _reachedRequiredMinimums({
+    required int sum,
+    required int runs,
+    required int minDurationMicros,
+    required int minSamples,
+  }) {
+    return sum >= minDurationMicros && runs >= minSamples;
+  }
+
+  _SampleStatistics _calculateStatistics({
+    required int sum,
+    required int sum2,
+    required int runs,
+  }) {
+    final mean = sum / runs;
+    if (runs < 2) {
+      return _SampleStatistics(mean: mean, relativeMarginOfError: 0);
+    }
+
+    final numerator = sum2 - mean * mean * runs;
+    final variance = math.max(numerator / (runs - 1), 0).toDouble();
+    final sd = math.sqrt(variance);
+    final sem = sd / math.sqrt(runs);
+    final df = runs - 1;
+    final critical = studentTTable[df.toString()] ?? studentTTable['infinity']!;
+    final moe = sem * critical;
+    final rme = mean == 0 ? 0.0 : (moe / mean) * 100;
+
+    return _SampleStatistics(mean: mean, relativeMarginOfError: rme);
+  }
+}
+
+class _SampleStatistics {
+  const _SampleStatistics({
+    required this.mean,
+    required this.relativeMarginOfError,
+  });
+
+  final double mean;
+  final double relativeMarginOfError;
 }

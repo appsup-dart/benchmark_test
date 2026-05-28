@@ -139,13 +139,17 @@ The comparison uses throughput, so higher `ops/sec` is an improvement and lower 
 
 #### Parameters
 
-| Parameter     | Default              | Description |
-|---------------|----------------------|-------------|
-| `minDuration` | `Duration(seconds: 2)` | Keep running until at least this much time has elapsed |
-| `minSamples`  | `5`                  | Keep running until at least this many iterations have completed |
-| `timeout`     | `minDuration * 2`    | Fail the test if it exceeds this duration |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `minDuration` | `Duration(seconds: 2)` | Keep running measured iterations until at least this much measured time has elapsed |
+| `minSamples` | `5` | Keep running measured iterations until at least this many measured iterations have completed |
+| `warmupMinSamples` | `1` | Run at least this many warm-up iterations before sampling |
+| `warmupMinDuration` | `Duration.zero` | Keep warming up until at least this duration has elapsed |
+| `targetRme` | `null` | Optional precision target (`±%` margin of error). Sampling continues until this threshold is reached after minimums |
+| `maxSamples` | `null` | Optional safety cap for measured iterations (use with `targetRme`) |
+| `timeout` | `minDuration * 2` | Fail the test if it exceeds this duration |
 
-The first iteration is treated as a warm-up run and is excluded from the statistics.
+Warm-up iterations are excluded from the reported statistics (`ops/sec`, margin of error, sampled runs, and average duration).
 
 #### `setUpEach` and `tearDownEach`
 
