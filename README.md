@@ -317,8 +317,11 @@ The action runs the benchmark CLI once per compile type, converts the JSONL
 results to `github-action-benchmark` custom data, and commits benchmark history
 to the `gh-pages` branch. Results are stored as `customBiggerIsBetter`, with
 benchmark names suffixed by compile type, for example `parse json [jit]` and
-`parse json [aot]`. The action always runs with Dart assertions disabled to keep
-CI benchmark numbers representative.
+`parse json [aot]`. Regression alerts still compare each compile type separately.
+The action always deploys a custom dashboard that plots those series on one chart
+per benchmark and overwrites `index.html` on each run (github-action-benchmark
+itself never replaces an existing `index.html`). The action always runs with
+Dart assertions disabled to keep CI benchmark numbers representative.
 
 For Flutter packages, set `sdk` to `flutter` so the action installs Flutter and
 runs `flutter pub get` before invoking the benchmark CLI:

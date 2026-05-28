@@ -157,3 +157,39 @@ runs:
         fail-on-alert: ${{ inputs.fail-on-alert }}
         comment-on-alert: ${{ inputs.comment-on-alert }}
         alert-threshold: ${{ inputs.alert-threshold }}
+
+    - name: Update benchmark dashboard
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+
+        branch="${{ inputs.gh-pages-branch }}"
+        data_dir="${{ inputs.benchmark-data-dir-path }}"
+        dashboard="${{ github.action_path }}/tool/github_action/gh_pages_index.html"
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        if ! git ls-remote --heads origin "$branch" | grep -q .; then
+          echo "Branch '$branch' does not exist yet; skipping dashboard update." >&2
+          exit 0
+        fi
+
+        previous_ref="$(git rev-parse HEAD)"
+        git fetch origin "$branch"
+        git checkout "$branch"
+
+        mkdir -p "$data_dir"
+        cp -f "$dashboard" "$data_dir/index.html"
+
+        git add -f "$data_dir/index.html"
+        if git diff --cached --quiet; then
+          git checkout "$previous_ref"
+          exit 0
+        fi
+
+        git commit -m "Update benchmark dashboard"
+        git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${branch}"
+        git checkout "$previous_ref"

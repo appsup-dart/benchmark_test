@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes" />
+    <title>Benchmarks</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Material+Icons" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+    <style>
+      html {
+        font-family: BlinkMacSystemFont, -apple-system, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
+          "Fira Sans", "Droid Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background-color: #fff;
+        font-size: 16px;
+      }
+      body {
+        color: #4a4a4a;
+        margin: 8px;
+        font-size: 1em;
+        font-weight: 400;
+      }
+      header {
+        margin-bottom: 8px;
+        display: flex;
+        flex-direction: column;
+      }
+      main {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      a {
+        color: #3273dc;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      a:hover {
+        color: #000;
+      }
+      button {
+        color: #fff;
+        background-color: #3298dc;
+        border-color: transparent;
+        cursor: pointer;
+        text-align: center;
+      }
+      button:hover {
+        background-color: #2793da;
+        flex: none;
+      }
+      .spacer {
+        flex: auto;
+      }
+      .small {
+        font-size: 0.75rem;
+      }
+      footer {
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+      }
+      .header-label {
+        margin-right: 4px;
+      }
+      .benchmark-set {
+        margin: 8px 0;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      .benchmark-title {
+        font-size: 3rem;
+        font-weight: 600;
+        word-break: break-word;
+        text-align: center;
+      }
+      .benchmark-graphs {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+      }
+      .benchmark-chart-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: min(100%, 1000px);
+        margin: 24px auto;
+      }
+      .benchmark-chart-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 12px;
+        text-align: center;
+      }
+      .benchmark-chart-container {
+        position: relative;
+        width: 100%;
+        height: 420px;
+      }
+      .benchmark-chart {
+        width: 100% !important;
+        height: 100% !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header id="header">
+      <div class="spacer"></div>
+      <div>
+        <span class="header-label">Last Update:</span>
+        <span id="last-update"></span>
+      </div>
+      <div>
+        <span class="header-label">Repository:</span>
+        <a id="repository-link"></a>
+      </div>
+      <div class="spacer"></div>
+    </header>
+    <main id="main"></main>
+    <footer>
+      <button id="dl-button">Download data as JSON</button>
+      <div class="spacer"></div>
+      <div class="small">Powered by <a href="https://github.com/benchmark-action/github-action-benchmark">github-action-benchmark</a></div>
+    </footer>
+    <script src="data.js"></script>
+    <script>
+      'use strict';
+      (function () {
+        const compileColors = {
+          jit: '#00B4AB',
+          aot: '#01579B',
+          js: '#f1e05a',
+          wasm: '#654FF0',
+          _default: '#333333',
+        };
+
+        function parseBenchName(name) {
+          const match = /^(.*) \[([^\]]+)\]$/.exec(name);
+          if (match) {
+            return { baseName: match[1], compileType: match[2] };
+          }
+          // Legacy entries without a compile suffix are treated as JIT.
+          return { baseName: name, compileType: 'jit' };
+        }
+
+        function mergeAllEntries(data) {
+          const merged = [];
+          for (const suites of Object.values(data.entries)) {
+            merged.push(...suites);
+          }
+          return merged;
+        }
+
+        function collectBenchesGrouped(entries) {
+          const map = new Map();
+          for (const entry of entries) {
+            const { commit, date, tool, benches } = entry;
+            for (const bench of benches) {
+              const { baseName, compileType } = parseBenchName(bench.name);
+              const seriesKey = compileType;
+              const result = { commit, date, tool, bench };
+              if (!map.has(baseName)) {
+                map.set(baseName, new Map());
+              }
+              const seriesMap = map.get(baseName);
+              const arr = seriesMap.get(seriesKey);
+              if (arr === undefined) {
+                seriesMap.set(seriesKey, [result]);
+              } else {
+                arr.push(result);
+              }
+            }
+          }
+          return map;
+        }
+
+        function suiteTitle(data) {
+          const names = Object.keys(data.entries);
+          if (names.length === 1) {
+            return names[0];
+          }
+          return 'Benchmarks';
+        }
+
+        function init() {
+          const data = window.BENCHMARK_DATA;
+
+          document.getElementById('last-update').textContent = new Date(data.lastUpdate).toString();
+          const repoLink = document.getElementById('repository-link');
+          repoLink.href = data.repoUrl;
+          repoLink.textContent = data.repoUrl;
+
+          document.getElementById('dl-button').onclick = () => {
+            const dataUrl = 'data:,' + JSON.stringify(data, null, 2);
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = 'benchmark_data.json';
+            a.click();
+          };
+
+          // github-action-benchmark stores each `name` input as a separate suite
+          // (e.g. legacy "Benchmark" vs "Dart Benchmarks"). Merge them so history
+          // lines up on one chart per benchmark and compile type.
+          return [
+            {
+              name: suiteTitle(data),
+              dataSet: collectBenchesGrouped(mergeAllEntries(data)),
+            },
+          ];
+        }
+
+        function renderAllCharts(dataSets) {
+          function sortedCommits(seriesMap) {
+            const byId = new Map();
+            for (const series of seriesMap.values()) {
+              for (const point of series) {
+                byId.set(point.commit.id, point);
+              }
+            }
+            return Array.from(byId.values()).sort(
+              (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+            );
+          }
+
+          function renderGroupedGraph(parent, baseName, seriesMap) {
+            const wrap = document.createElement('div');
+            wrap.className = 'benchmark-chart-wrap';
+            parent.appendChild(wrap);
+
+            const titleElem = document.createElement('h2');
+            titleElem.className = 'benchmark-chart-title';
+            titleElem.textContent = baseName;
+            wrap.appendChild(titleElem);
+
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'benchmark-chart-container';
+            wrap.appendChild(chartContainer);
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'benchmark-chart';
+            chartContainer.appendChild(canvas);
+
+            const commits = sortedCommits(seriesMap);
+            const labels = commits.map((c) => c.commit.id.slice(0, 7));
+            const seriesData = [];
+
+            for (const [seriesKey, series] of seriesMap.entries()) {
+              seriesData.push({
+                seriesKey,
+                valueByCommit: new Map(series.map((s) => [s.commit.id, s])),
+              });
+            }
+
+            const datasets = seriesData.map(({ seriesKey, valueByCommit }) => {
+              const color = compileColors[seriesKey] ?? compileColors._default;
+              const label = seriesKey;
+              return {
+                label,
+                data: commits.map((c) => {
+                  const point = valueByCommit.get(c.commit.id);
+                  return point ? point.bench.value : null;
+                }),
+                borderColor: color,
+                backgroundColor: color + '60',
+                spanGaps: true,
+              };
+            });
+
+            const firstPoint = seriesData
+              .map(({ valueByCommit }) => valueByCommit.values().next().value)
+              .find((point) => point !== undefined);
+            const unit = firstPoint ? firstPoint.bench.unit : '';
+
+            const options = {
+              responsive: true,
+              maintainAspectRatio: false,
+              legend: {
+                display: true,
+              },
+              scales: {
+                xAxes: [
+                  {
+                    scaleLabel: {
+                      display: true,
+                      labelString: 'commit',
+                    },
+                  },
+                ],
+                yAxes: [
+                  {
+                    scaleLabel: {
+                      display: true,
+                      labelString: unit,
+                    },
+                    ticks: {
+                      beginAtZero: true,
+                    },
+                  },
+                ],
+              },
+              tooltips: {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                  afterTitle: (items) => {
+                    const commit = commits[items[0].index];
+                    return (
+                      '\n' +
+                      commit.commit.message +
+                      '\n\n' +
+                      commit.commit.timestamp +
+                      ' committed by @' +
+                      commit.commit.committer.username +
+                      '\n'
+                    );
+                  },
+                  label: (item, chartData) => {
+                    const { valueByCommit } = seriesData[item.datasetIndex];
+                    const point = valueByCommit.get(commits[item.index].commit.id);
+                    const seriesLabel = chartData.datasets[item.datasetIndex].label;
+                    if (!point) {
+                      return seriesLabel + ': n/a';
+                    }
+                    let label = item.yLabel;
+                    const { range, unit: benchUnit } = point.bench;
+                    label += ' ' + benchUnit;
+                    if (range) {
+                      label += ' (' + range + ')';
+                    }
+                    return seriesLabel + ': ' + label;
+                  },
+                  afterLabel: (item) => {
+                    const { valueByCommit } = seriesData[item.datasetIndex];
+                    const point = valueByCommit.get(commits[item.index].commit.id);
+                    const extra = point ? point.bench.extra : null;
+                    return extra ? '\n' + extra : '';
+                  },
+                },
+              },
+              onClick: (_mouseEvent, activeElems) => {
+                if (activeElems.length === 0) {
+                  return;
+                }
+                const commit = commits[activeElems[0]._index];
+                window.open(commit.commit.url, '_blank');
+              },
+            };
+
+            new Chart(canvas, {
+              type: 'line',
+              data: { labels, datasets },
+              options,
+            });
+          }
+
+          function renderBenchSet(name, benchSet, main) {
+            const setElem = document.createElement('div');
+            setElem.className = 'benchmark-set';
+            main.appendChild(setElem);
+
+            const nameElem = document.createElement('h1');
+            nameElem.className = 'benchmark-title';
+            nameElem.textContent = name;
+            setElem.appendChild(nameElem);
+
+            const graphsElem = document.createElement('div');
+            graphsElem.className = 'benchmark-graphs';
+            setElem.appendChild(graphsElem);
+
+            for (const [baseName, seriesMap] of benchSet.entries()) {
+              renderGroupedGraph(graphsElem, baseName, seriesMap);
+            }
+          }
+
+          const main = document.getElementById('main');
+          for (const { name, dataSet } of dataSets) {
+            renderBenchSet(name, dataSet, main);
+          }
+        }
+
+        renderAllCharts(init());
+      })();
+    </script>
+  </body>
+</html>
