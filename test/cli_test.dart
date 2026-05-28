@@ -78,6 +78,24 @@ void main() {
       );
     });
 
+    test('accepts js compile type', () async {
+      final runner = _RecordingRunner();
+
+      final exitCode = await runBenchmarkCli(
+        const [
+          '--compile',
+          'js',
+          'test/benchmarks_test.dart',
+        ],
+        runDartTest: runner.call,
+        printStatus: (_) {},
+      );
+
+      expect(exitCode, 0);
+      expect(runner.calls, hasLength(1));
+      expect(runner.calls.single.invocation.compiler, 'js');
+    });
+
     test('formats captured jsonl runner output for --output', () async {
       final runner = _RecordingRunner(stdout: _sampleBenchmarkJsonl);
       final output = <String>[];

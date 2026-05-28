@@ -98,7 +98,7 @@ BenchmarkCliConfig parseBenchmarkCliArguments(
     if (compileTypes.isEmpty) {
       compileTypes.add(BenchmarkCompileType.jit);
     }
-    if (compileTypes.any((type) => type == BenchmarkCompileType.aot)) {
+    if (compileTypes.any((type) => type != BenchmarkCompileType.jit)) {
       return BenchmarkCliConfig.error(
         'CPU profiling is only supported with JIT (--compile jit).',
       );
@@ -124,7 +124,7 @@ BenchmarkCliConfig parseBenchmarkCliArguments(
 
   return BenchmarkCliConfig(
     compileTypes: compileTypes.isEmpty
-        ? BenchmarkCompileType.values
+        ? defaultBenchmarkCompileTypes
         : List.unmodifiable(compileTypes),
     enableAsserts: results.flag('enable-asserts'),
     runSkipped: results.flag('run-skipped'),
@@ -146,7 +146,7 @@ Usage:
 Options:
 ${parser.usage}
 
-Supported compile types: jit, aot. Default: jit,aot.
+Supported compile types: jit, aot, js. Default: jit.
 Default output format: human.
 
 Examples:
@@ -157,6 +157,7 @@ Examples:
   dart run benchmark_test --run-skipped test/benchmarks_test.dart
   dart run benchmark_test --update-baseline test/benchmarks_test.dart
   dart run benchmark_test --profile --compile jit test/benchmarks_test.dart
+  dart run benchmark_test --compile js test/benchmarks_test.dart
   dart run benchmark_test -c jit,aot test/benchmarks_test.dart
 ''';
 }

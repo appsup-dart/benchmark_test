@@ -2,6 +2,7 @@
 class BenchmarkConfiguration {
   bool emitJsonlResults = false;
   bool profileMode = false;
+  int timeoutMultiplier = 1;
 }
 
 final benchmarkConfiguration = BenchmarkConfiguration();
@@ -10,7 +11,9 @@ final benchmarkConfiguration = BenchmarkConfiguration();
 void configureBenchmarkRunner({
   bool emitJsonlResults = false,
   bool profileMode = false,
+  int timeoutMultiplier = 1,
 }) {
   benchmarkConfiguration.emitJsonlResults = emitJsonlResults;
   benchmarkConfiguration.profileMode = profileMode;
+  benchmarkConfiguration.timeoutMultiplier = timeoutMultiplier;
 }

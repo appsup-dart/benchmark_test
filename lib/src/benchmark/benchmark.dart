@@ -70,4 +70,10 @@ void benchmark(
       if (benchmarkConfiguration.profileMode) {
         debugger(message: 'END: $description');
       }
-    }, timeout: timeout ?? Timeout(minDuration * 2));
+    }, timeout: timeout ?? Timeout(_defaultTimeout(minDuration)));
+
+Duration _defaultTimeout(Duration minDuration) {
+  final multiplier = benchmarkConfiguration.timeoutMultiplier;
+  final micros = minDuration.inMicroseconds * 2 * multiplier;
+  return Duration(microseconds: micros);
+}

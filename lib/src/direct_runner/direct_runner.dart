@@ -5,8 +5,12 @@ import 'dart:io';
 import '../cli/benchmark_vm_profile_session.dart';
 import 'benchmark_test_discovery.dart';
 import 'benchmark_test_invocation.dart';
+import 'benchmark_test_name_filter.dart';
 import 'direct_runner_source_generator.dart';
 import 'process_runner.dart' show ProcessRunResult, ProcessRunner;
+
+const _runnerStatusPrefix = '__BENCHMARK_TEST_STATUS__:';
+const _rawBenchmarkJsonlPrefix = '{"formatVersion":';
 
 class DirectRunner {
   const DirectRunner({
@@ -36,14 +40,23 @@ class DirectRunner {
 
       try {
         final bootstrap = File('${runDir.path}/benchmark_direct_runner.dart');
-        await bootstrap.writeAsString(
-          _sourceGenerator.generate(
-            testFiles,
-            invocation.nameFilter,
-            runSkipped: invocation.runSkipped,
-            profileMode: invocation.profile,
-          ),
-        );
+        if (invocation.compiler == 'js') {
+          await bootstrap.writeAsString(
+            _sourceGenerator.generateNodeBootstrap(
+              testFiles,
+              profileMode: invocation.profile,
+            ),
+          );
+        } else {
+          await bootstrap.writeAsString(
+            _sourceGenerator.generate(
+              testFiles,
+              invocation.nameFilter,
+              runSkipped: invocation.runSkipped,
+              profileMode: invocation.profile,
+            ),
+          );
+        }
 
         if (invocation.profile) {
           if (invocation.compiler == 'exe') {
@@ -78,6 +91,25 @@ class DirectRunner {
           return await _processRunner.start(
             executable.path,
             const [],
+            environment: _environmentFor(),
+            captureStdout: captureStdout,
+            forwardStdout: forwardStdout,
+          );
+        }
+
+        if (invocation.compiler == 'js') {
+          final args = <String>[
+            'test',
+            '-p',
+            'node',
+            if (invocation.runSkipped) '--run-skipped',
+            ..._nameFilterTestArgs(invocation.nameFilter),
+            bootstrap.path,
+          ];
+
+          return await _processRunner.start(
+            Platform.resolvedExecutable,
+            args,
             environment: _environmentFor(),
             captureStdout: captureStdout,
             forwardStdout: forwardStdout,
@@ -140,7 +172,10 @@ class DirectRunner {
       (line) {
         session.trackStdoutLine(line);
         stdoutBuffer.writeln(line);
-        stdout.writeln(line);
+        if (!line.startsWith(_runnerStatusPrefix) &&
+            !line.startsWith(_rawBenchmarkJsonlPrefix)) {
+          stdout.writeln(line);
+        }
       },
       onDone: () {
         if (!stdoutDone.isCompleted) stdoutDone.complete();
@@ -167,6 +202,16 @@ class DirectRunner {
 
   Map<String, String> _environmentFor() =>
       Map<String, String>.from(Platform.environment)..remove('PROFILE_MODE');
+
+  List<String> _nameFilterTestArgs(BenchmarkNameFilter? filter) {
+    if (filter is BenchmarkPatternNameFilter) {
+      return ['-n', filter.pattern];
+    }
+    if (filter is BenchmarkPlainNameFilter) {
+      return ['-n', '^${RegExp.escape(filter.name)}\$'];
+    }
+    return const [];
+  }
 }
 
 Future<ProcessRunResult> runBenchmarkTestInvocation(

@@ -7,6 +7,8 @@ import '../direct_runner/process_runner.dart';
 import 'benchmark_cli_output.dart';
 import 'benchmark_cli_parser.dart';
 
+const _runnerStatusPrefix = '__BENCHMARK_TEST_STATUS__:';
+
 typedef DartTestRunner = Future<ProcessRunResult> Function(
   BenchmarkTestInvocation invocation, {
   bool captureStdout,
@@ -62,10 +64,15 @@ Future<int> runBenchmarkCli(
       forwardStdout: forwardChildOutput,
     );
 
-    if (runResult.exitCode != 0) return runResult.exitCode;
+    final runnerStatus = _readRunnerStatus(runResult.stdout);
+    if (runnerStatus == _RunnerStatus.fail) return 1;
+    if (runnerStatus == _RunnerStatus.unknown && runResult.exitCode != 0) {
+      return runResult.exitCode;
+    }
+    final cleanOutput = _stripRunnerStatusLines(runResult.stdout);
 
     output.writeFromRunnerOutput(
-      runResult.stdout,
+      cleanOutput,
       displayFormat: displayFormat,
       updateBaseline: config.updateBaseline,
     );
@@ -77,3 +84,22 @@ Future<int> runBenchmarkCli(
 void _stdoutWriteln(String line) => stdout.writeln(line);
 
 void _stderrWriteln(String line) => stderr.writeln(line);
+
+enum _RunnerStatus { ok, fail, unknown }
+
+_RunnerStatus _readRunnerStatus(String output) {
+  for (final line in output.split('\n')) {
+    if (!line.startsWith(_runnerStatusPrefix)) continue;
+    final value = line.substring(_runnerStatusPrefix.length).trim();
+    if (value == 'ok') return _RunnerStatus.ok;
+    if (value == 'fail') return _RunnerStatus.fail;
+  }
+  return _RunnerStatus.unknown;
+}
+
+String _stripRunnerStatusLines(String output) {
+  return output
+      .split('\n')
+      .where((line) => !line.startsWith(_runnerStatusPrefix))
+      .join('\n');
+}

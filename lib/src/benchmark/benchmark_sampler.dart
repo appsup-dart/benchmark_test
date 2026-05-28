@@ -32,7 +32,7 @@ class BenchmarkSampler {
       for (var setup in setUps) {
         await setup();
       }
-      var s = Timeline.now;
+      final stopwatch = Stopwatch()..start();
       if (warmUp) {
         await body();
       } else {
@@ -44,7 +44,8 @@ class BenchmarkSampler {
           previousTag.makeCurrent();
         }
       }
-      var v = Timeline.now - s;
+      stopwatch.stop();
+      final v = stopwatch.elapsedMicroseconds;
       for (var teardown in tearDowns) {
         await teardown();
       }

@@ -4,6 +4,9 @@ import 'dart:io';
 
 import 'started_process.dart';
 
+const _runnerStatusPrefix = '__BENCHMARK_TEST_STATUS__:';
+const _rawBenchmarkJsonlPrefix = '{"formatVersion":';
+
 class ProcessRunResult {
   final int exitCode;
   final String stdout;
@@ -72,14 +75,28 @@ class ProcessRunner {
     if (captureStdout) {
       final buffer = StringBuffer();
       final stderrDrain = process.stderr.forEach(stderr.add);
-      await for (final chunk in process.stdout.transform(utf8.decoder)) {
-        buffer.write(chunk);
-        if (forwardStdout) {
-          // Forward progress immediately; captureStdout alone buffers until exit,
-          // which makes long CLI benchmark runs look hung.
-          stdout.write(chunk);
+      var forwardPending = '';
+      void flushForwardLines(String chunk, {required bool flushTail}) {
+        if (!forwardStdout) return;
+        forwardPending += chunk;
+        final lines = forwardPending.split('\n');
+        if (!flushTail) {
+          forwardPending = lines.removeLast();
+        } else {
+          forwardPending = '';
+        }
+        for (final line in lines) {
+          if (_isSuppressedForwardLine(line)) continue;
+          stdout.writeln(line);
         }
       }
+      await for (final chunk in process.stdout.transform(utf8.decoder)) {
+        buffer.write(chunk);
+        // Forward progress immediately; captureStdout alone buffers until exit,
+        // which makes long CLI benchmark runs look hung.
+        flushForwardLines(chunk, flushTail: false);
+      }
+      flushForwardLines('', flushTail: true);
       await stderrDrain;
       capturedStdout = buffer.toString();
     } else {
@@ -88,4 +105,9 @@ class ProcessRunner {
     final exitCode = await process.exitCode;
     return ProcessRunResult(exitCode: exitCode, stdout: capturedStdout);
   }
+}
+
+bool _isSuppressedForwardLine(String line) {
+  return line.startsWith(_runnerStatusPrefix) ||
+      line.startsWith(_rawBenchmarkJsonlPrefix);
 }
