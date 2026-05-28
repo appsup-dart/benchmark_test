@@ -10,7 +10,6 @@ import 'benchmark_iteration_hooks.dart';
 import 'benchmark_output_format.dart';
 import 'benchmark_sampler.dart';
 
-export 'benchmark_configuration.dart' show configureBenchmarkRunner;
 export 'benchmark_iteration_hooks.dart' show setUpEach, tearDownEach;
 export 'benchmark_profile_mode.dart' show isProfileMode;
 
