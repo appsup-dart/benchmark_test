@@ -71,7 +71,7 @@ class BenchmarkSampler {
       for (var setup in setUps) {
         await setup();
       }
-      final stopwatch = Stopwatch()..start();
+      final startMicros = Timeline.now;
       final previousTag = getCurrentTag();
       _benchmarkBodyTag.makeCurrent();
       try {
@@ -79,8 +79,7 @@ class BenchmarkSampler {
       } finally {
         previousTag.makeCurrent();
       }
-      stopwatch.stop();
-      final v = stopwatch.elapsedMicroseconds;
+      final v = Timeline.now - startMicros;
       for (var teardown in tearDowns) {
         await teardown();
       }
