@@ -34,7 +34,8 @@ void main() {
       expect(traceEvents.first['sf'], isA<String>());
     });
 
-    test('maps SDK resolved URLs to dart: packageUri for flame chart', () async {
+    test('maps SDK resolved URLs to dart: packageUri for flame chart',
+        () async {
       final cpuSamples = _sdkCpuSamples();
       final snapshot = await convertCpuSamplesToDevToolsSnapshot(
         cpuSamples,
@@ -53,8 +54,7 @@ void main() {
     });
 
     test('converts a saved .cpu.json file', () async {
-      final cpuPath =
-          'build/benchmark_test/profiles/001_100ms.cpu.json';
+      final cpuPath = 'build/benchmark_test/profiles/001_100ms.cpu.json';
       if (!File(cpuPath).existsSync()) {
         markTestSkipped('Run --profile once to generate $cpuPath');
       }
@@ -98,8 +98,8 @@ void main() {
     });
 
     test(
-      'postProcessDevToolsSnapshot collapses wrappers and labels benchmark body',
-      () {
+        'postProcessDevToolsSnapshot collapses wrappers and labels benchmark body',
+        () {
       final snapshot = {
         'devToolsSnapshot': true,
         'activeScreenId': 'cpu-profiler',
@@ -112,27 +112,31 @@ void main() {
               'name': 'BenchmarkSampler.sample',
               'category': 'Dart',
               'resolvedUrl': 'file:///sampler.dart',
-              'packageUri': 'package:benchmark_test/src/benchmark/benchmark_sampler.dart',
+              'packageUri':
+                  'package:benchmark_test/src/benchmark/benchmark_sampler.dart',
               'parent': 'a2',
             },
             'a2': {
               'name': '<anonymous closure>',
               'category': 'Dart',
-              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/async/future_impl.dart',
+              'resolvedUrl':
+                  'org-dartlang-sdk:///sdk/lib/async/future_impl.dart',
               'packageUri': 'dart:async/future_impl.dart',
               'parent': 'a3',
             },
             'a3': {
               'name': '_runPendingImmediateCallback',
               'category': 'Dart',
-              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/isolate/timer_impl.dart',
+              'resolvedUrl':
+                  'org-dartlang-sdk:///sdk/lib/isolate/timer_impl.dart',
               'packageUri': 'dart:isolate-patch/timer_impl.dart',
               'parent': 'a4',
             },
             'a4': {
               'name': '_Timer._runTimers',
               'category': 'Dart',
-              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/isolate/timer_impl.dart',
+              'resolvedUrl':
+                  'org-dartlang-sdk:///sdk/lib/isolate/timer_impl.dart',
               'packageUri': 'dart:isolate-patch/timer_impl.dart',
               'parent': 'cpuProfileRoot',
             },
@@ -140,20 +144,23 @@ void main() {
               'name': 'BenchmarkSampler.sample',
               'category': 'Dart',
               'resolvedUrl': 'file:///sampler.dart',
-              'packageUri': 'package:benchmark_test/src/benchmark/benchmark_sampler.dart',
+              'packageUri':
+                  'package:benchmark_test/src/benchmark/benchmark_sampler.dart',
               'parent': 'b3',
             },
             'b2': {
               'name': '<anonymous closure>',
               'category': 'Dart',
               'resolvedUrl': 'file:///benchmark.dart',
-              'packageUri': 'package:benchmark_test/src/benchmark/benchmark.dart',
+              'packageUri':
+                  'package:benchmark_test/src/benchmark/benchmark.dart',
               'parent': 'b1',
             },
             'b3': {
               'name': '_RawReceivePort._handleMessage',
               'category': 'Dart',
-              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/isolate-patch/isolate_patch.dart',
+              'resolvedUrl':
+                  'org-dartlang-sdk:///sdk/lib/isolate-patch/isolate_patch.dart',
               'packageUri': 'dart:isolate-patch/isolate_patch.dart',
               'parent': 'cpuProfileRoot',
             },
@@ -216,7 +223,11 @@ CpuSamples _sdkCpuSamples() {
       },
     ],
     'samples': [
-      {'tid': 1, 'timestamp': 100, 'stack': [0]},
+      {
+        'tid': 1,
+        'timestamp': 100,
+        'stack': [0]
+      },
     ],
   })!;
 }
@@ -265,8 +276,16 @@ CpuSamples _minimalCpuSamples() {
       },
     ],
     'samples': [
-      {'tid': 1, 'timestamp': 100, 'stack': [1, 0]},
-      {'tid': 1, 'timestamp': 1100, 'stack': [1, 0]},
+      {
+        'tid': 1,
+        'timestamp': 100,
+        'stack': [1, 0]
+      },
+      {
+        'tid': 1,
+        'timestamp': 1100,
+        'stack': [1, 0]
+      },
     ],
   })!;
 }

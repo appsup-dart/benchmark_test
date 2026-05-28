@@ -260,8 +260,8 @@ Future<String> _waitForVmServiceUri(
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     if (serviceInfoFile.existsSync()) {
-      final json =
-          jsonDecode(serviceInfoFile.readAsStringSync()) as Map<String, dynamic>;
+      final json = jsonDecode(serviceInfoFile.readAsStringSync())
+          as Map<String, dynamic>;
       final uri = json['uri'];
       if (uri is String && uri.isNotEmpty) {
         return uri;
@@ -276,9 +276,7 @@ Future<String> _waitForVmServiceUri(
 
 String _toWebSocketUri(String httpUri) {
   final uri = Uri.parse(httpUri);
-  final path = uri.path.endsWith('/')
-      ? '${uri.path}ws'
-      : '${uri.path}/ws';
+  final path = uri.path.endsWith('/') ? '${uri.path}ws' : '${uri.path}/ws';
   return uri.replace(scheme: 'ws', path: path).toString();
 }
 
@@ -294,7 +292,8 @@ void _noop(String _) {}
 
 CpuSamples filterCpuSamplesByUserTag(CpuSamples samples, String userTag) {
   final originalSamples = samples.samples ?? const <CpuSample>[];
-  final filtered = originalSamples.where((sample) => sample.userTag == userTag).toList();
+  final filtered =
+      originalSamples.where((sample) => sample.userTag == userTag).toList();
   if (filtered.isEmpty) {
     return CpuSamples.parse(samples.toJson())!;
   }

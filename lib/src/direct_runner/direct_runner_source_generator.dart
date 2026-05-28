@@ -86,7 +86,8 @@ class DirectRunnerSourceGenerator {
     }
     buffer
       ..writeln('  });')
-      ..writeln(r"  print('$_benchmarkStatusPrefix${success ? 'ok' : 'fail'}');")
+      ..writeln(
+          r"  print('$_benchmarkStatusPrefix${success ? 'ok' : 'fail'}');")
       ..writeln('}')
       ..writeln()
       ..writeln(

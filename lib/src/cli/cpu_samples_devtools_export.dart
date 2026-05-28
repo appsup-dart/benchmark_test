@@ -475,7 +475,8 @@ bool _isRuntimeWrapperFrameWithContext(
   final parentName = parentId == null ? null : sourceFrames[parentId]?['name'];
 
   // Keep the benchmark body closure even when it comes from async internals.
-  if (name == '<anonymous closure>' && parentName == 'BenchmarkSampler.sample') {
+  if (name == '<anonymous closure>' &&
+      parentName == 'BenchmarkSampler.sample') {
     return false;
   }
   return _isRuntimeWrapperFrame(frame);

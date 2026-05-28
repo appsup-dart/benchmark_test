@@ -285,7 +285,8 @@ void main() {
       );
 
       expect(exitCode, 64);
-      expect(errors.first, contains('CPU profiling is only supported with JIT'));
+      expect(
+          errors.first, contains('CPU profiling is only supported with JIT'));
     });
 
     test('prints usage for unknown compile types', () async {

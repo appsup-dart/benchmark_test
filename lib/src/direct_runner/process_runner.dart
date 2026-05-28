@@ -90,6 +90,7 @@ class ProcessRunner {
           stdout.writeln(line);
         }
       }
+
       await for (final chunk in process.stdout.transform(utf8.decoder)) {
         buffer.write(chunk);
         // Forward progress immediately; captureStdout alone buffers until exit,
