@@ -8,7 +8,6 @@ import 'benchmark_baseline_store.dart';
 import 'benchmark_configuration.dart';
 import 'benchmark_iteration_hooks.dart';
 import 'benchmark_output_format.dart';
-import 'benchmark_profile_mode.dart';
 import 'benchmark_sampler.dart';
 
 export 'benchmark_configuration.dart' show configureBenchmarkRunner;
@@ -30,9 +29,8 @@ export 'benchmark_profile_mode.dart' show isProfileMode;
 /// `build/benchmark_test/baselines.json`. Use `--update-baseline` on the
 /// benchmark CLI to create or overwrite the baseline.
 ///
-/// If the environment variable `PROFILE_MODE` is set to `true`, the test will
-/// pause at the beginning and end of the test to allow the user to start and
-/// stop the CPU profiler.
+/// If profile mode is enabled, the test pauses at benchmark start and end so
+/// profiling sessions can capture per-benchmark samples.
 ///
 /// The test will fail if [timeout] is reached. The default timeout is twice the
 /// [minDuration].
@@ -45,12 +43,8 @@ void benchmark(
   Timeout? timeout,
 }) =>
     test(description, () async {
-      if (isProfileMode) {
+      if (benchmarkConfiguration.profileMode) {
         print('Profiling: $description');
-        print('  - open the CPU profiler');
-        print('  - select the main #2 isolate');
-        print('  - start recording');
-        print('  - resume the debugger');
         debugger(message: 'START: $description');
       }
 
@@ -73,8 +67,7 @@ void benchmark(
         ),
       );
 
-      if (isProfileMode) {
-        print('  - stop recording');
+      if (benchmarkConfiguration.profileMode) {
         debugger(message: 'END: $description');
       }
     }, timeout: timeout ?? Timeout(minDuration * 2));

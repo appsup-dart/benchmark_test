@@ -1,6 +1,6 @@
-import 'dart:io';
+import 'benchmark_configuration.dart';
 
 /// Whether benchmarks should pause for CPU profiling.
 ///
-/// Controlled by the `PROFILE_MODE` environment variable.
-final bool isProfileMode = Platform.environment['PROFILE_MODE'] == 'true';
+/// Controlled by [configureBenchmarkRunner].
+bool get isProfileMode => benchmarkConfiguration.profileMode;

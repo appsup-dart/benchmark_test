@@ -56,6 +56,13 @@ ArgParser createBenchmarkArgParser() {
       negatable: false,
     )
     ..addFlag(
+      'profile',
+      help:
+          'Profile benchmarks with the CPU sampler (JIT only). Writes profiles '
+          'to build/benchmark_test/profiles/.',
+      negatable: false,
+    )
+    ..addFlag(
       'help',
       abbr: 'h',
       help: 'Show this help.',
@@ -78,12 +85,25 @@ BenchmarkCliConfig parseBenchmarkCliArguments(
     return BenchmarkCliConfig.help();
   }
 
+  final profile = results.flag('profile');
+
   final compileTypes = <BenchmarkCompileType>[];
   final error = addBenchmarkCompileTypes(
     compileTypes,
     results.multiOption('compile'),
   );
   if (error != null) return BenchmarkCliConfig.error(error);
+
+  if (profile) {
+    if (compileTypes.isEmpty) {
+      compileTypes.add(BenchmarkCompileType.jit);
+    }
+    if (compileTypes.any((type) => type == BenchmarkCompileType.aot)) {
+      return BenchmarkCliConfig.error(
+        'CPU profiling is only supported with JIT (--compile jit).',
+      );
+    }
+  }
 
   final plainName = results.option('plain-name');
   final name = results.option('name');
@@ -108,6 +128,7 @@ BenchmarkCliConfig parseBenchmarkCliArguments(
         : List.unmodifiable(compileTypes),
     enableAsserts: results.flag('enable-asserts'),
     runSkipped: results.flag('run-skipped'),
+    profile: profile,
     updateBaseline: results.flag('update-baseline'),
     outputFormat: results.option('output'),
     paths: List.unmodifiable(results.rest),
@@ -135,6 +156,7 @@ Examples:
   dart run benchmark_test --enable-asserts test/benchmarks_test.dart
   dart run benchmark_test --run-skipped test/benchmarks_test.dart
   dart run benchmark_test --update-baseline test/benchmarks_test.dart
+  dart run benchmark_test --profile --compile jit test/benchmarks_test.dart
   dart run benchmark_test -c jit,aot test/benchmarks_test.dart
 ''';
 }

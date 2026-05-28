@@ -10,6 +10,7 @@ import 'benchmark_cli_parser.dart';
 typedef DartTestRunner = Future<ProcessRunResult> Function(
   BenchmarkTestInvocation invocation, {
   bool captureStdout,
+  bool forwardStdout,
 });
 
 Future<int> runBenchmarkCli(
@@ -40,17 +41,25 @@ Future<int> runBenchmarkCli(
   final displayFormat = BenchmarkOutputFormat.parse(config.outputFormat);
 
   for (final compileType in config.compileTypes) {
-    printStatus('Running benchmarks with ${compileType.label}...');
+    if (config.profile) {
+      printStatus('Profiling benchmarks with ${compileType.label}...');
+    } else {
+      printStatus('Running benchmarks with ${compileType.label}...');
+    }
 
+    final forwardChildOutput =
+        config.profile || displayFormat == BenchmarkOutputFormat.human;
     final runResult = await runner(
       BenchmarkTestInvocation(
         compiler: compileType.testCompiler,
         enableAsserts: config.enableAsserts,
         runSkipped: config.runSkipped,
+        profile: config.profile,
         paths: config.paths,
         nameFilter: config.nameFilter,
       ),
       captureStdout: true,
+      forwardStdout: forwardChildOutput,
     );
 
     if (runResult.exitCode != 0) return runResult.exitCode;

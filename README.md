@@ -220,9 +220,31 @@ existing baselines. **Update baseline** passes `--update-baseline` so results ar
 written to `build/benchmark_test/baselines.json`.
 
 
-### Profile code from VS Code
+### Profile from the CLI
 
-To profile a benchmark with the Dart CPU profiler, add a launch configuration to `.vscode/launch.json`:
+Run benchmarks under the CPU sampler with VM service attached (JIT only):
+
+```sh
+dart run benchmark_test --profile --compile jit test/benchmarks_test.dart
+```
+
+The CLI starts a separate VM in benchmark profile mode, connects over VM service,
+records CPU samples between each benchmark's start and end pauses, and writes two
+files per benchmark under `build/benchmark_test/profiles/`:
+
+* `*.cpu.json` — raw VM service `CpuSamples` (for scripts and archival)
+* `*.devtools.json` — DevTools snapshot (for offline analysis). Stack frames
+  include `packageUri` values (`dart:` for SDK libraries, empty for native code)
+  so the flame chart uses the same colors as a live DevTools session.
+
+To review a saved profile, open DevTools → **CPU Profiler** → **Import** and
+choose a `*.devtools.json` file (the same format as DevTools **Export**).
+
+Use `--name` or `--plain-name` to profile a single benchmark.
+
+### Profile from VS Code
+
+To profile from VS Code, launch the `benchmark_test` CLI directly:
 
 ```json
 {
@@ -230,15 +252,17 @@ To profile a benchmark with the Dart CPU profiler, add a launch configuration to
   "request": "launch",
   "type": "dart",
   "codeLens": {
-    "for": ["debug-test"]
+    "for": ["run-test"]
   },
-  "env": {"PROFILE_MODE": "true"}
+  "customTool": "dart",
+  "customToolReplacesArgs": 5,
+  "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--profile"]
 }
 ```
 
-When `PROFILE_MODE` is set to `true`, the benchmark pauses at the start and end of each test so you can start and stop CPU profiling in the debugger. Use the **Profile** code lens on a benchmark test to launch it in profile mode.
-
-Tests do not run in the main isolate, so in the CPU profiler you must select the isolate where the test is running (often labeled something like `test_suite:... #2`) before starting recording. The benchmark prints these steps to the console when it pauses.
+This runs the same CLI profiling flow as terminal usage and writes profile files
+to `build/benchmark_test/profiles/` (`*.cpu.json` and `*.devtools.json`). Import
+the `*.devtools.json` files in DevTools → **CPU Profiler** → **Import**.
 
 ### Track benchmarks on GitHub
 

@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import '../cli/benchmark_vm_profile_session.dart';
 import 'benchmark_test_discovery.dart';
 import 'benchmark_test_invocation.dart';
 import 'direct_runner_source_generator.dart';
@@ -22,6 +25,7 @@ class DirectRunner {
   Future<ProcessRunResult> run(
     BenchmarkTestInvocation invocation, {
     bool captureStdout = false,
+    bool forwardStdout = false,
   }) async {
     try {
       final testFiles = _discovery.collect(invocation.paths);
@@ -37,8 +41,22 @@ class DirectRunner {
             testFiles,
             invocation.nameFilter,
             runSkipped: invocation.runSkipped,
+            profileMode: invocation.profile,
           ),
         );
+
+        if (invocation.profile) {
+          if (invocation.compiler == 'exe') {
+            stderr.writeln('CPU profiling is only supported with JIT.');
+            return const ProcessRunResult(exitCode: 64);
+          }
+
+          return await _runProfiled(
+            bootstrap: bootstrap,
+            invocation: invocation,
+            printStatus: stderr.writeln,
+          );
+        }
 
         if (invocation.compiler == 'exe') {
           final executable = File(
@@ -60,7 +78,9 @@ class DirectRunner {
           return await _processRunner.start(
             executable.path,
             const [],
+            environment: _environmentFor(),
             captureStdout: captureStdout,
+            forwardStdout: forwardStdout,
           );
         }
 
@@ -70,7 +90,9 @@ class DirectRunner {
             if (invocation.enableAsserts) '--enable-asserts',
             bootstrap.path,
           ],
+          environment: _environmentFor(),
           captureStdout: captureStdout,
+          forwardStdout: forwardStdout,
         );
       } finally {
         await runDir.delete(recursive: true);
@@ -83,15 +105,79 @@ class DirectRunner {
       return const ProcessRunResult(exitCode: 66);
     }
   }
+
+  Future<ProcessRunResult> _runProfiled({
+    required File bootstrap,
+    required BenchmarkTestInvocation invocation,
+    required void Function(String line) printStatus,
+  }) async {
+    final workDir = bootstrap.parent;
+    final serviceInfoFile = File('${workDir.path}/vm_service.json');
+    final profileOutputDir = Directory('build/benchmark_test/profiles');
+    final session = BenchmarkVmProfileSession(
+      serviceInfoFile: serviceInfoFile,
+      outputDirectory: profileOutputDir,
+      printStatus: printStatus,
+    );
+
+    final started = await _processRunner.startTracked(
+      Platform.resolvedExecutable,
+      [
+        if (invocation.enableAsserts) '--enable-asserts',
+        bootstrap.path,
+      ],
+      environment: _environmentFor(),
+      vmServiceInfoFile: serviceInfoFile.path,
+      pauseIsolatesOnStart: true,
+    );
+
+    final stdoutBuffer = StringBuffer();
+    final stdoutDone = Completer<void>();
+    started.process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen(
+      (line) {
+        session.trackStdoutLine(line);
+        stdoutBuffer.writeln(line);
+        stdout.writeln(line);
+      },
+      onDone: () {
+        if (!stdoutDone.isCompleted) stdoutDone.complete();
+      },
+      onError: stdoutDone.completeError,
+    );
+
+    try {
+      await session.connect();
+      await session.synchronizePausedIsolates();
+      final exitCode = await started.exitCode;
+      await stdoutDone.future;
+      return ProcessRunResult(
+        exitCode: exitCode,
+        stdout: stdoutBuffer.toString(),
+      );
+    } finally {
+      await session.dispose();
+      if (serviceInfoFile.existsSync()) {
+        serviceInfoFile.deleteSync();
+      }
+    }
+  }
+
+  Map<String, String> _environmentFor() =>
+      Map<String, String>.from(Platform.environment)..remove('PROFILE_MODE');
 }
 
 Future<ProcessRunResult> runBenchmarkTestInvocation(
   BenchmarkTestInvocation invocation, {
   bool captureStdout = false,
+  bool forwardStdout = false,
   DirectRunner? runner,
 }) {
   return (runner ?? const DirectRunner()).run(
     invocation,
     captureStdout: captureStdout,
+    forwardStdout: forwardStdout,
   );
 }

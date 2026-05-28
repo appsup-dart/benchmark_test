@@ -26,20 +26,24 @@ void main() {
             compiler: 'kernel',
             enableAsserts: false,
             runSkipped: false,
+            profile: false,
             paths: [],
             nameFilter: null,
           ),
           captureStdout: true,
+          forwardStdout: true,
         ),
         _RunCall(
           invocation: const BenchmarkTestInvocation(
             compiler: 'exe',
             enableAsserts: false,
             runSkipped: false,
+            profile: false,
             paths: [],
             nameFilter: null,
           ),
           captureStdout: true,
+          forwardStdout: true,
         ),
       ]);
     });
@@ -223,6 +227,43 @@ void main() {
       expect(runner.calls, hasLength(1));
     });
 
+    test('passes profile mode to the benchmark runner', () async {
+      final runner = _RecordingRunner();
+      final status = <String>[];
+
+      final exitCode = await runBenchmarkCli(
+        const [
+          '--profile',
+          '--compile',
+          'jit',
+          '--name',
+          '^delay 100ms\$',
+          'test/src/benchmark.dart',
+        ],
+        runDartTest: runner.call,
+        printStatus: status.add,
+      );
+
+      expect(exitCode, 0);
+      expect(runner.calls, hasLength(1));
+      expect(runner.calls.single.invocation.profile, isTrue);
+      expect(runner.calls.single.invocation.compiler, 'kernel');
+      expect(status.first, contains('Profiling benchmarks with jit'));
+    });
+
+    test('rejects profile mode with aot', () async {
+      final errors = <String>[];
+
+      final exitCode = await runBenchmarkCli(
+        const ['--profile', '--compile', 'aot'],
+        runDartTest: _RecordingRunner().call,
+        printError: errors.add,
+      );
+
+      expect(exitCode, 64);
+      expect(errors.first, contains('CPU profiling is only supported with JIT'));
+    });
+
     test('prints usage for unknown compile types', () async {
       final errors = <String>[];
 
@@ -292,11 +333,13 @@ class _RecordingRunner {
   Future<ProcessRunResult> call(
     BenchmarkTestInvocation invocation, {
     bool captureStdout = false,
+    bool forwardStdout = false,
   }) async {
     calls.add(
       _RunCall(
         invocation: invocation,
         captureStdout: captureStdout,
+        forwardStdout: forwardStdout,
       ),
     );
     final exitCode =
@@ -311,10 +354,12 @@ class _RecordingRunner {
 class _RunCall {
   final BenchmarkTestInvocation invocation;
   final bool captureStdout;
+  final bool forwardStdout;
 
   const _RunCall({
     required this.invocation,
     required this.captureStdout,
+    required this.forwardStdout,
   });
 
   @override
@@ -323,9 +368,11 @@ class _RunCall {
         invocation.compiler == other.invocation.compiler &&
         invocation.enableAsserts == other.invocation.enableAsserts &&
         invocation.runSkipped == other.invocation.runSkipped &&
+        invocation.profile == other.invocation.profile &&
         _listEquals(invocation.paths, other.invocation.paths) &&
         invocation.nameFilter == other.invocation.nameFilter &&
-        captureStdout == other.captureStdout;
+        captureStdout == other.captureStdout &&
+        forwardStdout == other.forwardStdout;
   }
 
   @override
@@ -333,14 +380,16 @@ class _RunCall {
         invocation.compiler,
         invocation.enableAsserts,
         invocation.runSkipped,
+        invocation.profile,
         Object.hashAll(invocation.paths),
         invocation.nameFilter,
         captureStdout,
+        forwardStdout,
       );
 
   @override
   String toString() {
-    return '_RunCall(invocation: $invocation, captureStdout: $captureStdout)';
+    return '_RunCall(invocation: $invocation, captureStdout: $captureStdout, forwardStdout: $forwardStdout)';
   }
 }
 

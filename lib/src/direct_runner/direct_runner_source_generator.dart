@@ -9,6 +9,7 @@ class DirectRunnerSourceGenerator {
     List<File> testFiles,
     BenchmarkNameFilter? nameFilter, {
     bool runSkipped = false,
+    bool profileMode = false,
   }) {
     final suiteConfiguration = runSkipped
         ? 'SuiteConfiguration.runSkipped(true)'
@@ -70,7 +71,9 @@ class DirectRunnerSourceGenerator {
       ..writeln('const String? _plainName = ${nameFilter.plainNameSource};')
       ..writeln()
       ..writeln('Future<void> main() async {')
-      ..writeln('  configureBenchmarkRunner(emitJsonlResults: true);')
+      ..writeln(
+        '  configureBenchmarkRunner(emitJsonlResults: true, profileMode: $profileMode);',
+      )
       ..writeln('  final success = await _runBenchmarkTests(() async {');
     for (var i = 0; i < testFiles.length; i++) {
       buffer.writeln('    await Future.sync(test_$i.main);');
