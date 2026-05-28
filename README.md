@@ -300,7 +300,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: appsup-dart/benchmark_test@v1
+      - uses: appsup-dart/benchmark_test@action-v1
         with:
           paths: test/benchmarks_test.dart
           compile: jit,aot
@@ -308,6 +308,10 @@ jobs:
           comment-on-alert: true
           fail-on-alert: true
 ```
+
+The `uses: ...@action-v1` ref selects the GitHub Action wrapper (`action.yml`
+and helper scripts). The benchmark CLI and library version come from your
+project's `benchmark_test` dev dependency in `pubspec.yaml`.
 
 The action runs the benchmark CLI once per compile type, converts the JSONL
 results to `github-action-benchmark` custom data, and commits benchmark history
@@ -320,7 +324,7 @@ For Flutter packages, set `sdk` to `flutter` so the action installs Flutter and
 runs `flutter pub get` before invoking the benchmark CLI:
 
 ```yaml
-- uses: appsup-dart/benchmark_test@v1
+- uses: appsup-dart/benchmark_test@action-v1
   with:
     sdk: flutter
     flutter-channel: stable
