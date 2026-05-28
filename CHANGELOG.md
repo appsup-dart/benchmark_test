@@ -1,3 +1,11 @@
+## 0.1.1
+
+- **FEAT**: add dedicated benchmark CLI with support for `jit`, `aot`, `js`, and `wasm` compile targets.
+- **FEAT**: add baseline comparison and update workflows with compiler-aware baselines and output formats (`human`, `benchmarkjs`, `jsonl`).
+- **FEAT**: add CLI CPU profiling with automated profile export and benchmark-body focused flame chart data.
+- **FEAT**: improve benchmark sampling with warmup-aware measurements and optional precision-driven stopping.
+- **FEAT**: improve developer/CI workflow with assert-free benchmark runs, a GitHub Action, and VS Code run configurations.
+
 ## 0.1.0
 
  - **REFACTOR**: set min sdk to 3 and upgrade lints dev dependency. ([fd6f8b2e](https://github.com/appsup-dart/benchmark_test/commit/fd6f8b2e5464e82d085bab44e35d0f50631a2ac6))
