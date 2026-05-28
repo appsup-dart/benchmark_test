@@ -70,11 +70,21 @@ class BenchmarkBaselineStore {
 
     baselines = <String, BenchmarkResult>{};
     for (var entry in benchmarks.entries) {
-      var name = entry.key;
-      if (name is! String) continue;
+      final key = entry.key;
+      if (key is! String) continue;
+      final value = entry.value;
+      if (value is! Map) continue;
 
-      var result = BenchmarkResult.fromJson(entry.value, name: name);
-      if (result != null) baselines[name] = result;
+      var name = _benchmarkNameFromEntry(key: key, value: value);
+      final compilerFromKey = _compilerFromKey(key);
+      var result = BenchmarkResult.fromJson(
+        value,
+        name: name,
+        compiler: compilerFromKey,
+      );
+      if (result != null) {
+        baselines[_baselineKey(result)] = result;
+      }
     }
     return _baselines = baselines;
   }
@@ -95,6 +105,26 @@ class BenchmarkBaselineStore {
 
   String _baselineKey(BenchmarkResult result) {
     return '${result.compiler}::${result.name}';
+  }
+
+  String _benchmarkNameFromEntry({
+    required String key,
+    required Map value,
+  }) {
+    final jsonName = value['name'];
+    if (jsonName is String && jsonName.isNotEmpty) return jsonName;
+    final separatorIndex = key.indexOf('::');
+    if (separatorIndex != -1 && separatorIndex + 2 < key.length) {
+      return key.substring(separatorIndex + 2);
+    }
+    return key;
+  }
+
+  String? _compilerFromKey(String key) {
+    final separatorIndex = key.indexOf('::');
+    if (separatorIndex <= 0) return null;
+    final compiler = key.substring(0, separatorIndex);
+    return compiler.isEmpty ? null : compiler;
   }
 }
 

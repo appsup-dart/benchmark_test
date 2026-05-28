@@ -191,6 +191,7 @@ void _writeBaseline({
         name: {
           'formatVersion': 1,
           'name': name,
+          'compiler': 'jit',
           'throughput': {
             'value': operationsPerSecond,
             'unit': 'ops/sec',
