@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'dart:math' as math;
 
 import 'benchmark_result.dart';
+import 'iteration_timer.dart';
 import 'student_t_table.dart';
 
 class BenchmarkSampler {
@@ -65,13 +66,14 @@ class BenchmarkSampler {
       }
     }
 
+    final iterationTimer = createIterationTimer();
     while (true) {
       i++;
 
       for (var setup in setUps) {
         await setup();
       }
-      final startMicros = Timeline.now;
+      iterationTimer.start();
       final previousTag = getCurrentTag();
       _benchmarkBodyTag.makeCurrent();
       try {
@@ -79,7 +81,7 @@ class BenchmarkSampler {
       } finally {
         previousTag.makeCurrent();
       }
-      final v = Timeline.now - startMicros;
+      final v = iterationTimer.elapsedMicroseconds();
       for (var teardown in tearDowns) {
         await teardown();
       }
