@@ -1,3 +1,8 @@
+## 0.1.1+2
+
+ - **PERF**(benchmark): use compile-time platform iteration timers. ([69c40f98](https://github.com/appsup-dart/benchmark_test/commit/69c40f98d2d432e2873e8c32105567b6527f1452))
+ - **DOCS**: use action-v1 tag in GitHub workflow examples. ([bab7be67](https://github.com/appsup-dart/benchmark_test/commit/bab7be67eaf942b06087d29f08f105ebf07b089e))
+
 ## 0.1.1+1
 
  - **FIX**(benchmark): measure iterations with Timeline.now again. ([018be329](https://github.com/appsup-dart/benchmark_test/commit/018be329c7a6788f6b9e231eafb3b6b57bfe0390))
