@@ -13,10 +13,9 @@ void main() {
     test('runs jit by default', () async {
       final runner = _RecordingRunner();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [],
         runDartTest: runner.call,
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -31,7 +30,7 @@ void main() {
             nameFilter: null,
           ),
           captureStdout: true,
-          forwardStdout: true,
+          forwardStdout: false,
         ),
       ]);
     });
@@ -39,7 +38,7 @@ void main() {
     test('accepts repeated and comma-separated compile types', () async {
       final runner = _RecordingRunner();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--compile',
           'jit',
@@ -49,7 +48,6 @@ void main() {
           'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -69,14 +67,13 @@ void main() {
     test('accepts js compile type', () async {
       final runner = _RecordingRunner();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--compile',
           'js',
           'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -87,14 +84,13 @@ void main() {
     test('accepts wasm compile type', () async {
       final runner = _RecordingRunner();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--compile',
           'wasm',
           'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -106,7 +102,7 @@ void main() {
       final runner = _RecordingRunner(stdout: _sampleBenchmarkJsonl);
       final output = <String>[];
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--compile',
           'jit',
@@ -115,7 +111,6 @@ void main() {
           'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
-        printStatus: (_) {},
         printOutput: output.add,
       );
 
@@ -127,7 +122,7 @@ void main() {
     test('passes assertion opt-in to the benchmark runner', () async {
       final runner = _RecordingRunner();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--compile',
           'jit',
@@ -135,7 +130,6 @@ void main() {
           'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -145,7 +139,7 @@ void main() {
     test('passes run-skipped to the benchmark runner', () async {
       final runner = _RecordingRunner();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--compile',
           'jit',
@@ -153,7 +147,6 @@ void main() {
           'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -167,7 +160,7 @@ void main() {
       final runner = _RecordingRunner(stdout: _sampleBenchmarkJsonl);
       final output = <String>[];
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--compile',
           'jit',
@@ -175,7 +168,6 @@ void main() {
           'test/benchmarks_test.dart',
         ],
         runDartTest: runner.call,
-        printStatus: (_) {},
         cliOutput: BenchmarkCliOutput(
           baselineStore: BenchmarkBaselineStore(baselineFile),
           printLine: output.add,
@@ -191,15 +183,13 @@ void main() {
     test('runs skipped tests when --run-skipped is set', () async {
       final testFile = _writeSkippedTestFile();
 
-      final skippedExitCode = await runBenchmarkCli(
+      final skippedExitCode = await _runBenchmarkCliQuiet(
         ['--compile', 'jit', testFile.path],
-        printStatus: (_) {},
       );
       expect(skippedExitCode, 0);
 
-      final runSkippedExitCode = await runBenchmarkCli(
+      final runSkippedExitCode = await _runBenchmarkCliQuiet(
         ['--compile', 'jit', '--run-skipped', testFile.path],
-        printStatus: (_) {},
       );
       expect(runSkippedExitCode, 1);
     });
@@ -207,9 +197,8 @@ void main() {
     test('runs benchmark files with assertions disabled by default', () async {
       final benchmarkFile = _writeAssertSensitiveBenchmark();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         ['--compile', 'jit', benchmarkFile.path],
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -219,9 +208,8 @@ void main() {
         () async {
       final benchmarkFile = _writeAssertSensitiveBenchmark();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         ['--compile', 'aot', benchmarkFile.path],
-        printStatus: (_) {},
       );
 
       expect(exitCode, 0);
@@ -230,9 +218,8 @@ void main() {
     test('can opt in to assertions for benchmark files', () async {
       final benchmarkFile = _writeAssertSensitiveBenchmark();
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         ['--compile', 'jit', '--enable-asserts', benchmarkFile.path],
-        printStatus: (_) {},
       );
 
       expect(exitCode, 1);
@@ -241,10 +228,9 @@ void main() {
     test('stops after the first failing compile type', () async {
       final runner = _RecordingRunner(exitCodes: [2, 0]);
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [],
         runDartTest: runner.call,
-        printStatus: (_) {},
       );
 
       expect(exitCode, 2);
@@ -255,7 +241,7 @@ void main() {
       final runner = _RecordingRunner();
       final status = <String>[];
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const [
           '--profile',
           '--compile',
@@ -278,7 +264,7 @@ void main() {
     test('rejects profile mode with aot', () async {
       final errors = <String>[];
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const ['--profile', '--compile', 'aot'],
         runDartTest: _RecordingRunner().call,
         printError: errors.add,
@@ -292,7 +278,7 @@ void main() {
     test('prints usage for unknown compile types', () async {
       final errors = <String>[];
 
-      final exitCode = await runBenchmarkCli(
+      final exitCode = await _runBenchmarkCliQuiet(
         const ['--compile', 'wat'],
         runDartTest: _RecordingRunner().call,
         printError: errors.add,
@@ -303,6 +289,29 @@ void main() {
     });
   });
 }
+
+Future<int> _runBenchmarkCliQuiet(
+  List<String> arguments, {
+  DartTestRunner? runDartTest,
+  BenchmarkCliOutput? cliOutput,
+  void Function(String line)? printStatus,
+  void Function(String line)? printUsage,
+  void Function(String line)? printError,
+  void Function(String line)? printOutput,
+}) {
+  return runBenchmarkCli(
+    arguments,
+    runDartTest: runDartTest,
+    cliOutput: cliOutput,
+    forwardChildOutput: false,
+    printStatus: printStatus ?? _discardLine,
+    printUsage: printUsage ?? _discardLine,
+    printError: printError ?? _discardLine,
+    printOutput: printOutput ?? _discardLine,
+  );
+}
+
+void _discardLine(String _) {}
 
 File _writeSkippedTestFile() {
   final temp = Directory.systemTemp.createTempSync('benchmark_test_cli_');

@@ -19,6 +19,7 @@ Future<int> runBenchmarkCli(
   List<String> arguments, {
   DartTestRunner? runDartTest,
   BenchmarkCliOutput? cliOutput,
+  bool forwardChildOutput = true,
   void Function(String line) printStatus = _stderrWriteln,
   void Function(String line) printUsage = _stdoutWriteln,
   void Function(String line) printError = _stderrWriteln,
@@ -49,8 +50,8 @@ Future<int> runBenchmarkCli(
       printStatus('Running benchmarks with ${compileType.label}...');
     }
 
-    final forwardChildOutput =
-        config.profile || displayFormat == BenchmarkOutputFormat.human;
+    final shouldForwardChildOutput = forwardChildOutput &&
+        (config.profile || displayFormat == BenchmarkOutputFormat.human);
     final runResult = await runner(
       BenchmarkTestInvocation(
         compiler: compileType.testCompiler,
@@ -61,7 +62,7 @@ Future<int> runBenchmarkCli(
         nameFilter: config.nameFilter,
       ),
       captureStdout: true,
-      forwardStdout: forwardChildOutput,
+      forwardStdout: shouldForwardChildOutput,
     );
 
     final runnerStatus = _readRunnerStatus(runResult.stdout);
