@@ -23,14 +23,14 @@ class BenchmarkBaselineStore {
   void updateBenchmarks(Iterable<BenchmarkResult> results) {
     final baselines = _readBaselines();
     for (final result in results) {
-      baselines[result.name] = result;
+      baselines[_baselineKey(result)] = result;
     }
     _writeBaselines(baselines);
   }
 
   List<String> formatComparison(BenchmarkResult result) {
     var baselines = _readBaselines();
-    var baseline = baselines[result.name];
+    var baseline = baselines[_baselineKey(result)];
     var lines = <String>[];
 
     if (baseline == null) {
@@ -91,6 +91,10 @@ class BenchmarkBaselineStore {
             },
           })}\n',
     );
+  }
+
+  String _baselineKey(BenchmarkResult result) {
+    return '${result.compiler}::${result.name}';
   }
 }
 

@@ -55,6 +55,7 @@ void benchmark(
         setUps: benchmarkSetUpsEach,
         tearDowns: benchmarkTearDownsEach,
         name: TestHandle.current.name,
+        compiler: benchmarkConfiguration.compilerType,
       );
 
       final outputFormat = benchmarkConfiguration.emitJsonlResults

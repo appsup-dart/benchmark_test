@@ -1,0 +1,37 @@
+{
+    "configurations": [
+        {
+            "name": "Profile",
+            "request": "launch",
+            "type": "dart",
+            "codeLens": {
+              "for": ["run-test"]
+            },
+            "customTool": "dart",
+            "customToolReplacesArgs": 5,
+            "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--profile"]
+        },   
+        {
+            "name": "Run benchmark",
+            "request": "launch",
+            "type": "dart",
+            "codeLens": {
+              "for": ["run-test"]
+            },
+            "customTool": "dart",
+            "customToolReplacesArgs": 5,
+            "toolArgs": ["run", "benchmark_test", "--compiler", "jit"]
+        },   
+        {
+            "name": "Update baseline",
+            "request": "launch",
+            "type": "dart",
+            "codeLens": {
+              "for": ["run-test"]
+            },
+            "customTool": "dart",
+            "customToolReplacesArgs": 5,
+            "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--update-baseline"]
+        }  
+    ]
+}

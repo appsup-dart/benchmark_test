@@ -45,6 +45,7 @@ class DirectRunner {
             _sourceGenerator.generateNodeBootstrap(
               testFiles,
               profileMode: invocation.profile,
+              compilerType: _compilerLabel(invocation.compiler),
             ),
           );
         } else {
@@ -54,6 +55,7 @@ class DirectRunner {
               invocation.nameFilter,
               runSkipped: invocation.runSkipped,
               profileMode: invocation.profile,
+              compilerType: _compilerLabel(invocation.compiler),
             ),
           );
         }
@@ -215,6 +217,17 @@ class DirectRunner {
   }
 
   bool _runsInNode(String compiler) => compiler == 'js' || compiler == 'wasm';
+
+  String _compilerLabel(String compiler) {
+    switch (compiler) {
+      case 'kernel':
+        return 'jit';
+      case 'exe':
+        return 'aot';
+      default:
+        return compiler;
+    }
+  }
 }
 
 Future<ProcessRunResult> runBenchmarkTestInvocation(

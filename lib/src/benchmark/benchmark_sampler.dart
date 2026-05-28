@@ -17,6 +17,7 @@ class BenchmarkSampler {
     required List<FutureOr<void> Function()> setUps,
     required List<FutureOr<void> Function()> tearDowns,
     required String name,
+    required String compiler,
   }) async {
     var i = 0;
     var sum = 0;
@@ -79,6 +80,7 @@ class BenchmarkSampler {
     var hz = 1 / (sum / i) * 1000 * 1000;
     return BenchmarkResult(
       name: name,
+      compiler: compiler,
       operationsPerSecond: hz,
       relativeMarginOfError: rme,
       runs: i,

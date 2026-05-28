@@ -1,3 +1,6 @@
+@Tags(['benchmark'])
+library;
+
 import 'package:benchmark_test/benchmark_test.dart';
 import 'package:test/test.dart';
 

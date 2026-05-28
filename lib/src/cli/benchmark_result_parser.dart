@@ -17,8 +17,13 @@ List<BenchmarkResult> parseBenchmarkJsonlOutput(String output) {
     if (decoded is! Map) continue;
     final name = decoded['name'];
     if (name is! String) continue;
+    final compiler = decoded['compiler'];
 
-    final result = BenchmarkResult.fromJson(decoded, name: name);
+    final result = BenchmarkResult.fromJson(
+      decoded,
+      name: name,
+      compiler: compiler is String ? compiler : null,
+    );
     if (result != null) results.add(result);
   }
   return results;

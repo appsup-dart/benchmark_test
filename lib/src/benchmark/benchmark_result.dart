@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 class BenchmarkResult {
   final String name;
+  final String compiler;
   final double operationsPerSecond;
   final double relativeMarginOfError;
   final int runs;
@@ -9,13 +10,18 @@ class BenchmarkResult {
 
   BenchmarkResult({
     required this.name,
+    required this.compiler,
     required this.operationsPerSecond,
     required this.relativeMarginOfError,
     required this.runs,
     required this.averageDuration,
   });
 
-  static BenchmarkResult? fromJson(Object? value, {required String name}) {
+  static BenchmarkResult? fromJson(
+    Object? value, {
+    required String name,
+    String? compiler,
+  }) {
     if (value is! Map) return null;
 
     var throughput = value['throughput'];
@@ -38,6 +44,7 @@ class BenchmarkResult {
 
     return BenchmarkResult(
       name: name,
+      compiler: _compilerFromJson(value, compiler),
       operationsPerSecond: operationsPerSecond.toDouble(),
       relativeMarginOfError: relativeMarginOfError.toDouble(),
       runs: samples.toInt(),
@@ -57,6 +64,7 @@ class BenchmarkResult {
     return {
       'formatVersion': 1,
       'name': name,
+      'compiler': compiler,
       'throughput': {
         'value': operationsPerSecond,
         'unit': 'ops/sec',
@@ -70,5 +78,12 @@ class BenchmarkResult {
         'unit': 'microseconds',
       },
     };
+  }
+
+  static String _compilerFromJson(Map value, String? compiler) {
+    if (compiler != null && compiler.isNotEmpty) return compiler;
+    final fromJson = value['compiler'];
+    if (fromJson is String && fromJson.isNotEmpty) return fromJson;
+    return 'unknown';
   }
 }
