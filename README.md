@@ -232,10 +232,19 @@ The CLI starts a separate VM in benchmark profile mode, connects over VM service
 records CPU samples between each benchmark's start and end pauses, and writes two
 files per benchmark under `build/benchmark_test/profiles/`:
 
-* `*.cpu.json` — raw VM service `CpuSamples` (for scripts and archival)
-* `*.devtools.json` — DevTools snapshot (for offline analysis). Stack frames
+* `*.cpu.json` — VM service `CpuSamples` filtered to measured benchmark-body
+  iterations (hooks and warm-up excluded)
+* `*.devtools.json` — full DevTools snapshot of the captured profiling window
+  (includes setup / teardown / warm-up). Stack frames
   include `packageUri` values (`dart:` for SDK libraries, empty for native code)
   so the flame chart uses the same colors as a live DevTools session.
+* `*.postprocessed.devtools.json` — postprocessed DevTools snapshot with async
+  runtime wrappers collapsed, benchmark body promoted as top frame, and measured
+  benchmark-body samples only.
+
+Samples are filtered to measured benchmark-body iterations (`setUpEach` /
+`tearDownEach` and warm-up samples are excluded) so profiles focus on
+benchmarked code.
 
 To review a saved profile, open DevTools → **CPU Profiler** → **Import** and
 choose a `*.devtools.json` file (the same format as DevTools **Export**).

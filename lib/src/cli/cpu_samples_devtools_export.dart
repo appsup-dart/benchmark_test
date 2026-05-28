@@ -57,6 +57,118 @@ Future<void> convertCpuSamplesFileToDevToolsSnapshot({
   await output.writeAsString(jsonEncode(snapshot));
 }
 
+/// Returns a copy of [snapshot] with runtime wrapper frames collapsed so flame
+/// charts focus on benchmark-relevant stacks.
+Map<String, dynamic> postProcessDevToolsSnapshot(
+  Map<String, dynamic> snapshot, {
+  String? benchmarkName,
+}) {
+  final copy = jsonDecode(jsonEncode(snapshot)) as Map<String, dynamic>;
+  final cpuProfiler = copy['cpu-profiler'];
+  if (cpuProfiler is! Map<String, dynamic>) return copy;
+
+  final stackFrames = cpuProfiler['stackFrames'];
+  final traceEvents = cpuProfiler['traceEvents'];
+  if (stackFrames is! Map || traceEvents is! List) return copy;
+
+  final sourceFrames = <String, Map<String, Object?>>{};
+  for (final entry in stackFrames.entries) {
+    sourceFrames[entry.key.toString()] = Map<String, Object?>.from(
+      entry.value as Map,
+    );
+  }
+
+  final filteredFrameIdsByLeaf = <String, List<String>>{};
+  List<String> filteredChainForLeaf(String leafId) {
+    return filteredFrameIdsByLeaf.putIfAbsent(leafId, () {
+      final original = <String>[];
+      final seen = <String>{};
+      String? currentId = leafId;
+      while (currentId != null &&
+          currentId != _cpuProfileRootId &&
+          seen.add(currentId)) {
+        final frame = sourceFrames[currentId];
+        if (frame == null) break;
+        original.add(currentId);
+        currentId = frame['parent'] as String?;
+      }
+      final filtered = original
+          .where(
+            (id) => !_isRuntimeWrapperFrameWithContext(
+              sourceFrames,
+              id,
+            ),
+          )
+          .toList();
+      if (filtered.isNotEmpty) return filtered;
+      // If everything is runtime scaffolding, drop this sample from the
+      // postprocessed output rather than reintroducing wrapper-heavy stacks.
+      if (benchmarkName != null && benchmarkName.isNotEmpty) return <String>[];
+      return original;
+    });
+  }
+
+  final rebuiltFrames = <String, Map<String, Object?>>{};
+  final internedByKey = <String, String>{};
+  var nextFrameId = 1;
+  String internFrame(String oldId, String parentId) {
+    final frame = sourceFrames[oldId]!;
+    final displayName = _postProcessedFrameName(
+      frame,
+      sourceFrames: sourceFrames,
+      frameId: oldId,
+      benchmarkName: benchmarkName,
+    );
+    final parentName = parentId == _cpuProfileRootId
+        ? null
+        : rebuiltFrames[parentId]?['name'] as String?;
+    if (parentName == displayName) {
+      return parentId;
+    }
+    final normalizedParent = parentId == _cpuProfileRootId ? '' : parentId;
+    final key =
+        '$displayName|${frame['packageUri']}|${frame['resolvedUrl']}|${frame['sourceLine']}|$normalizedParent';
+    final existing = internedByKey[key];
+    if (existing != null) return existing;
+    final newId = 'pp-$nextFrameId';
+    nextFrameId++;
+    rebuiltFrames[newId] = {
+      'name': displayName,
+      'category': frame['category'],
+      'resolvedUrl': frame['resolvedUrl'],
+      'packageUri': frame['packageUri'],
+      if (frame['sourceLine'] != null) 'sourceLine': frame['sourceLine'],
+      if (normalizedParent.isNotEmpty) 'parent': normalizedParent,
+    };
+    internedByKey[key] = newId;
+    return newId;
+  }
+
+  final rebuiltTraceEvents = <Map<String, Object?>>[];
+  for (final event in traceEvents) {
+    if (event is! Map) continue;
+    final oldLeafId = event['sf']?.toString();
+    if (oldLeafId == null || oldLeafId.isEmpty) continue;
+    final chainLeafToRoot = _collapseConsecutiveEquivalentFrames(
+      filteredChainForLeaf(oldLeafId),
+      sourceFrames,
+      benchmarkName: benchmarkName,
+    );
+    if (chainLeafToRoot.isEmpty) continue;
+    var parentId = _cpuProfileRootId;
+    for (final frameId in chainLeafToRoot.reversed) {
+      parentId = internFrame(frameId, parentId);
+    }
+    rebuiltTraceEvents
+        .add({...Map<String, Object?>.from(event), 'sf': parentId});
+  }
+
+  cpuProfiler['stackFrames'] = rebuiltFrames;
+  cpuProfiler['traceEvents'] = rebuiltTraceEvents;
+  cpuProfiler['sampleCount'] = rebuiltTraceEvents.length;
+  return copy;
+}
+
 String get _defaultDevToolsVersion {
   // Cached at first use; falls back if `dart devtools --version` fails.
   return _cachedDevToolsVersion ??= _readDevToolsVersion();
@@ -324,6 +436,91 @@ String _verboseNameForNode(_CpuProfileTimelineTree node) {
   return name ?? '<unknown>';
 }
 
+bool _isRuntimeWrapperFrame(Map<String, Object?> frame) {
+  final name = (frame['name'] as String?) ?? '';
+  final packageUri = (frame['packageUri'] as String?) ?? '';
+
+  if (name == 'BenchmarkSampler.sample' ||
+      name.startsWith('_rootRun') ||
+      name.startsWith('_CustomZone.') ||
+      name == '_runPendingImmediateCallback' ||
+      name == '_RawReceivePort._handleMessage' ||
+      name == '_Timer._handleMessage' ||
+      name == '_Timer._runTimers' ||
+      name == 'handleValueCallback' ||
+      name.startsWith('_Future.')) {
+    return true;
+  }
+
+  if (packageUri.startsWith('dart:async') &&
+      (name == '<anonymous closure>' ||
+          name.startsWith('_') ||
+          name.contains('Zone') ||
+          name.contains('Future'))) {
+    return true;
+  }
+
+  return false;
+}
+
+bool _isRuntimeWrapperFrameWithContext(
+  Map<String, Map<String, Object?>> sourceFrames,
+  String frameId,
+) {
+  final frame = sourceFrames[frameId];
+  if (frame == null) return true;
+
+  final name = (frame['name'] as String?) ?? '';
+  final parentId = frame['parent'] as String?;
+  final parentName = parentId == null ? null : sourceFrames[parentId]?['name'];
+
+  // Keep the benchmark body closure even when it comes from async internals.
+  if (name == '<anonymous closure>' && parentName == 'BenchmarkSampler.sample') {
+    return false;
+  }
+  return _isRuntimeWrapperFrame(frame);
+}
+
+String _postProcessedFrameName(
+  Map<String, Object?> frame, {
+  required Map<String, Map<String, Object?>> sourceFrames,
+  required String frameId,
+  required String? benchmarkName,
+}) {
+  final name = (frame['name'] as String?) ?? '<unknown>';
+  if (benchmarkName == null || benchmarkName.isEmpty) return name;
+  if (name != '<anonymous closure>') return name;
+  final parentId = frame['parent'] as String?;
+  final parentName = parentId == null ? null : sourceFrames[parentId]?['name'];
+  if (parentName == 'BenchmarkSampler.sample') {
+    return '<benchmark body: $benchmarkName>';
+  }
+  return name;
+}
+
+List<String> _collapseConsecutiveEquivalentFrames(
+  List<String> frameIdsLeafToRoot,
+  Map<String, Map<String, Object?>> sourceFrames, {
+  required String? benchmarkName,
+}) {
+  final collapsed = <String>[];
+  String? previousName;
+  for (final frameId in frameIdsLeafToRoot) {
+    final frame = sourceFrames[frameId];
+    if (frame == null) continue;
+    final name = _postProcessedFrameName(
+      frame,
+      sourceFrames: sourceFrames,
+      frameId: frameId,
+      benchmarkName: benchmarkName,
+    );
+    if (previousName == name) continue;
+    collapsed.add(frameId);
+    previousName = name;
+  }
+  return collapsed;
+}
+
 const _kRootFrameId = 0;
 const _cpuProfileRootId = 'cpuProfileRoot';
 
@@ -356,9 +553,8 @@ class _CpuProfileTimelineTree {
   int frameId = _kRootFrameId;
   final children = <_CpuProfileTimelineTree>[];
 
-  String stackFrameId(String isolateId) => frameId == _kRootFrameId
-      ? _cpuProfileRootId
-      : '$isolateId-$frameId';
+  String stackFrameId(String isolateId) =>
+      frameId == _kRootFrameId ? _cpuProfileRootId : '$isolateId-$frameId';
 
   String? get name {
     final function = _profileFunction?.function;
@@ -395,7 +591,9 @@ class _CpuProfileTimelineTree {
   ProfileFunction? get _profileFunction {
     if (functionIndex == _kRootFunctionIndex) return null;
     final functions = cpuSamples.functions;
-    if (functions == null || functionIndex < 0 || functionIndex >= functions.length) {
+    if (functions == null ||
+        functionIndex < 0 ||
+        functionIndex >= functions.length) {
       return null;
     }
     return functions[functionIndex];

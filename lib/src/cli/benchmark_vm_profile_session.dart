@@ -7,6 +7,8 @@ import 'package:vm_service/vm_service_io.dart';
 
 import 'cpu_samples_devtools_export.dart';
 
+const benchmarkBodyProfileTag = 'benchmark-body';
+
 /// Connects to a benchmark VM, records CPU samples between profile pauses, and
 /// writes them to [outputDirectory].
 class BenchmarkVmProfileSession {
@@ -164,6 +166,18 @@ class BenchmarkVmProfileSession {
       startMicros,
       extentMicros,
     );
+    final filteredSamples = filterCpuSamplesByUserTag(
+      samples,
+      benchmarkBodyProfileTag,
+    );
+    if ((filteredSamples.sampleCount ?? 0) == 0 &&
+        (samples.sampleCount ?? 0) > 0) {
+      printStatus(
+        'No "$benchmarkBodyProfileTag" tagged samples found; keeping full profile.',
+      );
+    }
+    final samplesToWrite =
+        (filteredSamples.sampleCount ?? 0) > 0 ? filteredSamples : samples;
 
     final name = _sanitizeFileName(_currentBenchmarkName ?? 'benchmark');
     _profileIndex++;
@@ -171,7 +185,7 @@ class BenchmarkVmProfileSession {
         '${outputDirectory.path}/${_profileIndex.toString().padLeft(3, '0')}_$name';
 
     final cpuFile = File('$baseName.cpu.json');
-    await cpuFile.writeAsString(jsonEncode(samples.toJson()));
+    await cpuFile.writeAsString(jsonEncode(samplesToWrite.toJson()));
     printStatus('Wrote CPU profile to ${cpuFile.path}');
 
     final devtoolsFile = File('$baseName.devtools.json');
@@ -183,6 +197,21 @@ class BenchmarkVmProfileSession {
     await devtoolsFile.writeAsString(jsonEncode(devtoolsSnapshot));
     printStatus(
       'Wrote DevTools profile to ${devtoolsFile.path} (import in CPU Profiler)',
+    );
+
+    final postProcessedFile = File('$baseName.postprocessed.devtools.json');
+    final filteredDevtoolsSnapshot = await convertCpuSamplesToDevToolsSnapshot(
+      samplesToWrite,
+      isolateId,
+      vmService: _service,
+    );
+    final postProcessedSnapshot = postProcessDevToolsSnapshot(
+      filteredDevtoolsSnapshot,
+      benchmarkName: _currentBenchmarkName,
+    );
+    await postProcessedFile.writeAsString(jsonEncode(postProcessedSnapshot));
+    printStatus(
+      'Wrote postprocessed DevTools profile to ${postProcessedFile.path}',
     );
 
     _recordingIsolateId = null;
@@ -262,3 +291,35 @@ String _sanitizeFileName(String name) {
 }
 
 void _noop(String _) {}
+
+CpuSamples filterCpuSamplesByUserTag(CpuSamples samples, String userTag) {
+  final originalSamples = samples.samples ?? const <CpuSample>[];
+  final filtered = originalSamples.where((sample) => sample.userTag == userTag).toList();
+  if (filtered.isEmpty) {
+    return CpuSamples.parse(samples.toJson())!;
+  }
+
+  final maxStackDepth = filtered.fold<int>(
+    0,
+    (maxDepth, sample) => sample.stack == null
+        ? maxDepth
+        : (sample.stack!.length > maxDepth ? sample.stack!.length : maxDepth),
+  );
+
+  final minTs = filtered
+      .map((sample) => sample.timestamp)
+      .whereType<int>()
+      .fold<int>(filtered.first.timestamp ?? 0, (a, b) => a < b ? a : b);
+  final maxTs = filtered
+      .map((sample) => sample.timestamp)
+      .whereType<int>()
+      .fold<int>(filtered.first.timestamp ?? 0, (a, b) => a > b ? a : b);
+
+  final json = samples.toJson();
+  json['samples'] = filtered.map((sample) => sample.toJson()).toList();
+  json['sampleCount'] = filtered.length;
+  json['maxStackDepth'] = maxStackDepth;
+  json['timeOriginMicros'] = minTs;
+  json['timeExtentMicros'] = maxTs - minTs;
+  return CpuSamples.parse(json)!;
+}

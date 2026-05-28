@@ -8,6 +8,8 @@ import 'student_t_table.dart';
 class BenchmarkSampler {
   const BenchmarkSampler();
 
+  static final UserTag _benchmarkBodyTag = UserTag('benchmark-body');
+
   Future<BenchmarkResult> sample({
     required FutureOr<void> Function() body,
     required Duration minDuration,
@@ -31,7 +33,17 @@ class BenchmarkSampler {
         await setup();
       }
       var s = Timeline.now;
-      await body();
+      if (warmUp) {
+        await body();
+      } else {
+        final previousTag = getCurrentTag();
+        _benchmarkBodyTag.makeCurrent();
+        try {
+          await body();
+        } finally {
+          previousTag.makeCurrent();
+        }
+      }
       var v = Timeline.now - s;
       for (var teardown in tearDowns) {
         await teardown();

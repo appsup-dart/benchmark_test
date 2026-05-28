@@ -96,6 +96,102 @@ void main() {
       expect(written['devToolsSnapshot'], isTrue);
       expect(written['cpu-profiler'], isNotNull);
     });
+
+    test(
+      'postProcessDevToolsSnapshot collapses wrappers and labels benchmark body',
+      () {
+      final snapshot = {
+        'devToolsSnapshot': true,
+        'activeScreenId': 'cpu-profiler',
+        'cpu-profiler': {
+          'type': '_CpuProfileTimeline',
+          'sampleCount': 2,
+          'stackDepth': 6,
+          'stackFrames': {
+            'a1': {
+              'name': 'BenchmarkSampler.sample',
+              'category': 'Dart',
+              'resolvedUrl': 'file:///sampler.dart',
+              'packageUri': 'package:benchmark_test/src/benchmark/benchmark_sampler.dart',
+              'parent': 'a2',
+            },
+            'a2': {
+              'name': '<anonymous closure>',
+              'category': 'Dart',
+              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/async/future_impl.dart',
+              'packageUri': 'dart:async/future_impl.dart',
+              'parent': 'a3',
+            },
+            'a3': {
+              'name': '_runPendingImmediateCallback',
+              'category': 'Dart',
+              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/isolate/timer_impl.dart',
+              'packageUri': 'dart:isolate-patch/timer_impl.dart',
+              'parent': 'a4',
+            },
+            'a4': {
+              'name': '_Timer._runTimers',
+              'category': 'Dart',
+              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/isolate/timer_impl.dart',
+              'packageUri': 'dart:isolate-patch/timer_impl.dart',
+              'parent': 'cpuProfileRoot',
+            },
+            'b1': {
+              'name': 'BenchmarkSampler.sample',
+              'category': 'Dart',
+              'resolvedUrl': 'file:///sampler.dart',
+              'packageUri': 'package:benchmark_test/src/benchmark/benchmark_sampler.dart',
+              'parent': 'b3',
+            },
+            'b2': {
+              'name': '<anonymous closure>',
+              'category': 'Dart',
+              'resolvedUrl': 'file:///benchmark.dart',
+              'packageUri': 'package:benchmark_test/src/benchmark/benchmark.dart',
+              'parent': 'b1',
+            },
+            'b3': {
+              'name': '_RawReceivePort._handleMessage',
+              'category': 'Dart',
+              'resolvedUrl': 'org-dartlang-sdk:///sdk/lib/isolate-patch/isolate_patch.dart',
+              'packageUri': 'dart:isolate-patch/isolate_patch.dart',
+              'parent': 'cpuProfileRoot',
+            },
+          },
+          'traceEvents': [
+            {'ph': 'P', 'sf': 'a1'},
+            {'ph': 'P', 'sf': 'b2'},
+          ],
+        },
+      };
+
+      final processed = postProcessDevToolsSnapshot(
+        snapshot,
+        benchmarkName: 'delay 100ms',
+      );
+      final cpuProfiler = processed['cpu-profiler'] as Map<String, dynamic>;
+      final stackFrames = cpuProfiler['stackFrames'] as Map<String, dynamic>;
+
+      final byName = {
+        for (final frame in stackFrames.values.cast<Map<String, dynamic>>())
+          frame['name'] as String: frame,
+      };
+      expect(stackFrames.length, greaterThanOrEqualTo(1));
+      expect(byName['BenchmarkSampler.sample'], isNull);
+      expect(byName['<benchmark body: delay 100ms>'], isNotNull);
+      expect(
+        byName.keys,
+        isNot(contains('_runPendingImmediateCallback')),
+      );
+      expect(
+        byName.keys,
+        isNot(contains('_Timer._runTimers')),
+      );
+      expect(
+        byName.keys,
+        isNot(contains('_RawReceivePort._handleMessage')),
+      );
+    });
   });
 }
 
