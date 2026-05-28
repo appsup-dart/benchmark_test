@@ -1,3 +1,7 @@
+## 0.1.1+1
+
+ - **FIX**(benchmark): measure iterations with Timeline.now again. ([018be329](https://github.com/appsup-dart/benchmark_test/commit/018be329c7a6788f6b9e231eafb3b6b57bfe0390))
+
 ## 0.1.1
 
 - **FEAT**: add dedicated benchmark CLI with support for `jit`, `aot`, `js`, and `wasm` compile targets.
