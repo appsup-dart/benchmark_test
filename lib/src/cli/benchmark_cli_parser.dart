@@ -146,7 +146,7 @@ Usage:
 Options:
 ${parser.usage}
 
-Supported compile types: jit, aot, js. Default: jit.
+Supported compile types: jit, aot, js, wasm. Default: jit.
 Default output format: human.
 
 Examples:
@@ -158,6 +158,7 @@ Examples:
   dart run benchmark_test --update-baseline test/benchmarks_test.dart
   dart run benchmark_test --profile --compile jit test/benchmarks_test.dart
   dart run benchmark_test --compile js test/benchmarks_test.dart
+  dart run benchmark_test --compile wasm test/benchmarks_test.dart
   dart run benchmark_test -c jit,aot test/benchmarks_test.dart
 ''';
 }

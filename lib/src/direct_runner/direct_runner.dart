@@ -40,7 +40,7 @@ class DirectRunner {
 
       try {
         final bootstrap = File('${runDir.path}/benchmark_direct_runner.dart');
-        if (invocation.compiler == 'js') {
+        if (_runsInNode(invocation.compiler)) {
           await bootstrap.writeAsString(
             _sourceGenerator.generateNodeBootstrap(
               testFiles,
@@ -97,11 +97,12 @@ class DirectRunner {
           );
         }
 
-        if (invocation.compiler == 'js') {
+        if (_runsInNode(invocation.compiler)) {
           final args = <String>[
             'test',
             '-p',
             'node',
+            if (invocation.compiler == 'wasm') '--compiler=dart2wasm',
             if (invocation.runSkipped) '--run-skipped',
             ..._nameFilterTestArgs(invocation.nameFilter),
             bootstrap.path,
@@ -212,6 +213,8 @@ class DirectRunner {
     }
     return const [];
   }
+
+  bool _runsInNode(String compiler) => compiler == 'js' || compiler == 'wasm';
 }
 
 Future<ProcessRunResult> runBenchmarkTestInvocation(

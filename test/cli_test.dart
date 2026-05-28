@@ -10,7 +10,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('benchmark cli', () {
-    test('runs jit and aot by default', () async {
+    test('runs jit by default', () async {
       final runner = _RecordingRunner();
 
       final exitCode = await runBenchmarkCli(
@@ -24,18 +24,6 @@ void main() {
         _RunCall(
           invocation: const BenchmarkTestInvocation(
             compiler: 'kernel',
-            enableAsserts: false,
-            runSkipped: false,
-            profile: false,
-            paths: [],
-            nameFilter: null,
-          ),
-          captureStdout: true,
-          forwardStdout: true,
-        ),
-        _RunCall(
-          invocation: const BenchmarkTestInvocation(
-            compiler: 'exe',
             enableAsserts: false,
             runSkipped: false,
             profile: false,
@@ -94,6 +82,24 @@ void main() {
       expect(exitCode, 0);
       expect(runner.calls, hasLength(1));
       expect(runner.calls.single.invocation.compiler, 'js');
+    });
+
+    test('accepts wasm compile type', () async {
+      final runner = _RecordingRunner();
+
+      final exitCode = await runBenchmarkCli(
+        const [
+          '--compile',
+          'wasm',
+          'test/benchmarks_test.dart',
+        ],
+        runDartTest: runner.call,
+        printStatus: (_) {},
+      );
+
+      expect(exitCode, 0);
+      expect(runner.calls, hasLength(1));
+      expect(runner.calls.single.invocation.compiler, 'wasm');
     });
 
     test('formats captured jsonl runner output for --output', () async {
@@ -286,13 +292,13 @@ void main() {
       final errors = <String>[];
 
       final exitCode = await runBenchmarkCli(
-        const ['--compile', 'wasm'],
+        const ['--compile', 'wat'],
         runDartTest: _RecordingRunner().call,
         printError: errors.add,
       );
 
       expect(exitCode, 64);
-      expect(errors.first, contains('Unsupported compile type `wasm`'));
+      expect(errors.first, contains('Unsupported compile type `wat`'));
     });
   });
 }

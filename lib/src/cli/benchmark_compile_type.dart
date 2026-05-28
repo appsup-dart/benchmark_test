@@ -1,7 +1,8 @@
 enum BenchmarkCompileType {
   jit('jit', 'kernel'),
   aot('aot', 'exe'),
-  js('js', 'js');
+  js('js', 'js'),
+  wasm('wasm', 'wasm');
 
   const BenchmarkCompileType(this.label, this.testCompiler);
 
@@ -39,7 +40,7 @@ String? addBenchmarkCompileTypes(
 
     final compileType = BenchmarkCompileType.tryParse(normalized);
     if (compileType == null) {
-      return 'Unsupported compile type `$value`. Supported values: jit, aot, js.';
+      return 'Unsupported compile type `$value`. Supported values: jit, aot, js, wasm.';
     }
 
     if (!compileTypes.contains(compileType)) compileTypes.add(compileType);
