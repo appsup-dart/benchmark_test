@@ -3,28 +3,32 @@
 
 [:heart: sponsor](https://github.com/sponsors/rbellens)
 
-
 A tool to integrate benchmarking into your development and testing workflow.
+
+**New to `benchmark_test`?** Read the walkthrough article [*From "I think this is slow" to "I know why": a practical Dart benchmark workflow*](https://medium.com/@rik.bellens_81452/from-i-think-this-is-slow-to-i-know-why-a-practical-dart-benchmark-workflow-ed5bd9db8caf) for the full loop — IDE setup, baselines, profiling, compile targets, and CI — with screenshots and examples. This README is the reference; the article is the guided tour.
 
 ## Features
 
-* Run benchmarks as unit tests
-* Easily profile your code from VS code
-* Compare benchmarks between different commits on github
+* Benchmarks that look and run like `package:test` tests
+* Dedicated CLI runner (assert-free by default, multiple compile targets)
+* Local baselines with percentage comparison
+* CPU profiling with DevTools export and optional postprocessing
+* GitHub Action for trend charts and regression alerts
 
-## Usage
+## Quick start
 
 Add `benchmark_test` as a dev dependency:
 
 ```yaml
 dev_dependencies:
-  benchmark_test: ^0.0.2
+  benchmark_test: ^0.1.1
 ```
 
-Create a test file (for example `test/benchmarks_test.dart`) and use the `benchmark` function like a regular test:
+Create a benchmark test file and use `benchmark()` like a test:
 
 ```dart
 import 'package:benchmark_test/benchmark_test.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('my benchmarks', () {
@@ -32,59 +36,73 @@ void main() {
       // code to benchmark
     });
 
-    benchmark('parse json (long run)', () {
-      // code to benchmark
-    }, minDuration: Duration(seconds: 4), minSamples: 30);
+    benchmark(
+      'parse json (long run)',
+      () {
+        // code to benchmark
+      },
+      minDuration: Duration(seconds: 4),
+      minSamples: 30,
+    );
   });
 }
 ```
 
-Run benchmarks with `dart test`:
-
-```sh
-dart test test/benchmarks_test.dart
-```
-
-Or use the package CLI to run the same benchmarks for multiple compile types:
+Run with the package CLI (recommended for stable timings):
 
 ```sh
 dart run benchmark_test test/benchmarks_test.dart
 ```
 
-The CLI runs benchmarks with Dart assertions disabled by default so assertion
-checks do not affect benchmark timings. Use `--enable-asserts` to opt back in
-when you want assertion checks during a benchmark run:
+`dart test` also works and prints benchmark output, but runs with asserts enabled. See the [article](https://medium.com/@rik.bellens_81452/from-i-think-this-is-slow-to-i-know-why-a-practical-dart-benchmark-workflow-ed5bd9db8caf) for why that matters and how to wire VS Code code lenses.
+
+## CLI
 
 ```sh
-dart run benchmark_test --enable-asserts test/benchmarks_test.dart
+dart run benchmark_test [options] <test-files...> [-- dart-test-args...]
 ```
 
-The CLI currently supports `jit` and `aot` and runs both by default. Use
-`--compile` to choose one or more compile types:
+Common options:
+
+| Option | Description |
+|--------|-------------|
+| `--compile`, `-c` | Compile type(s): `jit`, `aot`, `js`, `wasm`, or comma-separated (default: `jit`) |
+| `--update-baseline` | Write results to `build/benchmark_test/baselines.json` |
+| `--profile` | Capture CPU profiles (JIT only) |
+| `--output` | `human` (default), `benchmarkjs`, or `jsonl` |
+| `--name` | Filter benchmarks by regex |
+| `--plain-name` | Filter benchmarks by plain name |
+| `--enable-asserts` | Run with Dart asserts enabled |
+| `--run-skipped` | Run skipped tests/benchmarks |
+
+Examples:
 
 ```sh
-dart run benchmark_test --compile jit test/benchmarks_test.dart
+dart run benchmark_test test/benchmarks_test.dart
 dart run benchmark_test --compile jit,aot test/benchmarks_test.dart
-```
-
-Use `--output` to choose `human`, `benchmarkjs`, or `jsonl` output:
-
-```sh
+dart run benchmark_test --update-baseline test/benchmarks_test.dart
+dart run benchmark_test --profile --plain-name "parse json" test/benchmarks_test.dart
 dart run benchmark_test --output jsonl test/benchmarks_test.dart
 ```
 
-Filter benchmarks by name on the CLI:
+Run `dart run benchmark_test --help` for the full option list.
 
-```sh
-dart run benchmark_test --name parse test/benchmarks_test.dart
-dart run benchmark_test --plain-name "parse json" test/benchmarks_test.dart
-```
+### Compile types
 
-### The `benchmark` method
+| Type | Runs as | Notes |
+|------|---------|-------|
+| `jit` | Dart VM (kernel) | Default; required for `--profile` |
+| `aot` | Native executable (`dart compile exe`) | Production-like VM/server timing |
+| `js` | JavaScript | Web targets |
+| `wasm` | WebAssembly | Web targets |
 
-`benchmark` registers a test that repeatedly executes the given function and prints performance statistics:
+Baselines are stored per compile type (for example `jit::my benchmarks parse json`).
 
-```
+## `benchmark()` API
+
+`benchmark()` registers a test that repeatedly executes the given function and prints statistics:
+
+```text
 Benchmark: my benchmarks parse json
   12345.67 ops/sec
   ±2.34% margin of error
@@ -92,203 +110,150 @@ Benchmark: my benchmarks parse json
   0:00:00.000081 average duration
 ```
 
-The output includes:
+| Field | Meaning |
+|-------|---------|
+| **ops/sec** | Estimated operations per second |
+| **±%** | Relative margin of error (95% confidence interval) |
+| **runs sampled** | Measured iterations (after warm-up) |
+| **average duration** | Mean time per iteration |
 
-* **ops/sec** — estimated operations per second
-* **±%** — relative margin of error (95% confidence interval)
-* **runs sampled** — number of iterations after the warm-up run
-* **average duration** — mean time per iteration
-
-#### Output formats
-
-`dart test` prints human-readable benchmark output. The `benchmark_test` CLI
-supports `--output` to choose another format:
-
-```sh
-dart run benchmark_test --output benchmarkjs test/benchmarks_test.dart
-dart run benchmark_test --output jsonl test/benchmarks_test.dart
-```
-
-Supported values:
-
-* `human` — default, optimized for local development
-* `benchmarkjs` — benchmark.js-compatible output for tools like `github-action-benchmark`
-* `jsonl` — one JSON object per benchmark result (`ndjson` is accepted as an alias)
-
-`ndjson` output uses this schema:
-
-```json
-{"formatVersion":1,"name":"my benchmarks parse json","throughput":{"value":12345.67,"unit":"ops/sec"},"statistics":{"relativeMarginOfError":2.34,"samples":42},"latency":{"mean":81,"unit":"microseconds"}}
-```
-
-#### Baselines
-
-Human output compares each benchmark against the baseline stored in `build/benchmark_test/baselines.json`. Baselines are read-only by default:
-
-```sh
-dart test test/benchmarks_test.dart
-```
-
-Create or overwrite the baseline with the benchmark CLI:
-
-```sh
-dart run benchmark_test --update-baseline test/benchmarks_test.dart
-```
-
-The comparison uses throughput, so higher `ops/sec` is an improvement and lower `ops/sec` is a regression. Changes of at least 5% are marked with `✅` for improvements or `⚠️` for regressions. Improvements and regressions are colored when ANSI colors are supported.
-
-#### Parameters
+### Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `minDuration` | `Duration(seconds: 2)` | Keep running measured iterations until at least this much measured time has elapsed |
-| `minSamples` | `5` | Keep running measured iterations until at least this many measured iterations have completed |
-| `warmupMinSamples` | `1` | Run at least this many warm-up iterations before sampling |
-| `warmupMinDuration` | `Duration.zero` | Keep warming up until at least this duration has elapsed |
-| `targetRme` | `null` | Optional precision target (`±%` margin of error). Sampling continues until this threshold is reached after minimums |
-| `maxSamples` | `null` | Optional safety cap for measured iterations (use with `targetRme`) |
-| `timeout` | `minDuration * 2` | Fail the test if it exceeds this duration |
+| `minDuration` | `Duration(seconds: 2)` | Keep sampling until at least this much measured time has elapsed |
+| `minSamples` | `5` | Keep sampling until at least this many measured iterations have completed |
+| `warmupMinSamples` | `1` | Warm-up iterations before sampling |
+| `warmupMinDuration` | `Duration.zero` | Minimum warm-up duration |
+| `targetRme` | `null` | Stop when relative margin of error is at most this value (after minimums) |
+| `maxSamples` | `null` | Upper cap on measured iterations (use with `targetRme`) |
+| `timeout` | `minDuration * 2` | Fail if sampling exceeds this duration |
 
-Warm-up iterations are excluded from the reported statistics (`ops/sec`, margin of error, sampled runs, and average duration).
+Warm-up iterations are excluded from reported statistics.
 
-#### `setUpEach` and `tearDownEach`
+### `setUpEach` and `tearDownEach`
 
-Use these to run setup and teardown logic before and after every iteration (not just once per test):
+Run before and after every measured iteration (not timed). Standard `setUp`, `tearDown`, `setUpAll`, and `tearDownAll` from `package:test` also apply.
 
 ```dart
-import 'package:benchmark_test/benchmark_test.dart';
-
-void main() {
-  group('with setup', () {
-    setUpEach(() {
-      // runs before each iteration
-    });
-
-    tearDownEach(() {
-      // runs after each iteration
-    });
-
-    benchmark('my benchmark', () {
-      // ...
-    });
+group('with setup', () {
+  setUpEach(() {
+    // runs before each measured iteration
   });
-}
+
+  tearDownEach(() {
+    // runs after each measured iteration
+  });
+
+  benchmark('my benchmark', () {
+    // ...
+  });
+});
 ```
 
-When called inside a nested `group`, they apply only to benchmarks within that group.
+In nested `group`s, `setUpEach` / `tearDownEach` apply only to benchmarks in that group.
 
-### Run benchmarks from VS Code
+## Baselines
 
-The default **Run** code lens uses `dart test`, which runs with Dart assertions
-enabled. That can skew benchmark timings. Add the configurations below to get
-extra code lenses that run through `benchmark_test` instead, so benchmarks are
-**assert-free** (and JIT-only in this example).
-
-```json
-[
-  {
-    "name": "Run benchmark",
-    "request": "launch",
-    "type": "dart",
-    "codeLens": {
-      "for": ["run-test"]
-    },
-    "customTool": "dart",
-    "customToolReplacesArgs": 5,
-    "toolArgs": ["run", "benchmark_test", "--compiler", "jit"]
-  },
-  {
-    "name": "Update baseline",
-    "request": "launch",
-    "type": "dart",
-    "codeLens": {
-      "for": ["run-test"]
-    },
-    "customTool": "dart",
-    "customToolReplacesArgs": 5,
-    "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--update-baseline"]
-  }
-]
-```
-
-Use `"for": ["run-test"]` only (not `debug-test`). The `benchmark_test` CLI
-runs benchmarks in a separate VM with assertions disabled (JIT only here via
-`--compiler jit`). Debug/VM-service flags are not used.
-
-`customToolReplacesArgs: 5` removes the default `dart test` tool arguments so
-`toolArgs` can invoke `dart run benchmark_test` instead. 
-
-**Run benchmark** and **Update baseline** both use the assert-free runner; they
-differ only in whether baselines are updated. **Run benchmark** compares against
-existing baselines. **Update baseline** passes `--update-baseline` so results are
-written to `build/benchmark_test/baselines.json`.
-
-
-### Profile from the CLI
-
-Run benchmarks under the CPU sampler with VM service attached (JIT only):
+Human output compares against `build/benchmark_test/baselines.json`:
 
 ```sh
-dart run benchmark_test --profile --compile jit test/benchmarks_test.dart
+dart run benchmark_test --update-baseline test/benchmarks_test.dart
+dart run benchmark_test test/benchmarks_test.dart
 ```
 
-The CLI starts a separate VM in benchmark profile mode, connects over VM service,
-records CPU samples between each benchmark's start and end pauses, and writes two
-files per benchmark under `build/benchmark_test/profiles/`:
+Higher `ops/sec` is an improvement. Changes of at least **5%** are marked with `✅` (improvement) or `⚠️` (regression). Smaller changes show as plain text with `(within ±5% threshold)`.
 
-* `*.cpu.json` — VM service `CpuSamples` filtered to measured benchmark-body
-  iterations (hooks and warm-up excluded)
-* `*.devtools.json` — full DevTools snapshot of the captured profiling window
-  (includes setup / teardown / warm-up). Stack frames
-  include `packageUri` values (`dart:` for SDK libraries, empty for native code)
-  so the flame chart uses the same colors as a live DevTools session.
-* `*.postprocessed.devtools.json` — postprocessed DevTools snapshot with async
-  runtime wrappers collapsed, benchmark body promoted as top frame, and measured
-  benchmark-body samples only.
+The file lives under `build/` (gitignored by default). See the [article](https://medium.com/@rik.bellens_81452/from-i-think-this-is-slow-to-i-know-why-a-practical-dart-benchmark-workflow-ed5bd9db8caf) for a worked optimization example.
 
-Samples are filtered to measured benchmark-body iterations (`setUpEach` /
-`tearDownEach` and warm-up samples are excluded) so profiles focus on
-benchmarked code.
+## Output formats
 
-To review a saved profile, open DevTools → **CPU Profiler** → **Import** and
-choose a `*.devtools.json` file (the same format as DevTools **Export**).
+The CLI supports `--output`:
 
-Use `--name` or `--plain-name` to profile a single benchmark.
+| Format | Use |
+|--------|-----|
+| `human` | Local development (default) |
+| `benchmarkjs` | [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark) compatible |
+| `jsonl` | One JSON object per result (`ndjson` alias accepted) |
 
-### Profile from VS Code
+JSONL schema:
 
-To profile from VS Code, launch the `benchmark_test` CLI directly:
+```json
+{"formatVersion":1,"name":"my benchmarks parse json","compiler":"jit","throughput":{"value":12345.67,"unit":"ops/sec"},"statistics":{"relativeMarginOfError":2.34,"samples":42},"latency":{"mean":81,"unit":"microseconds"}}
+```
+
+## VS Code
+
+The default **Run** code lens uses `dart test` (asserts on). Add custom code lenses that invoke the `benchmark_test` CLI instead. Use `"for": ["run-test"]` only, not `debug-test`.
+
+Restrict lenses to benchmark files with `codeLens.path` — filename globs must start with `**/` (for example `"**/*_benchmark_test.dart"`).
 
 ```json
 {
-  "name": "Profile",
-  "request": "launch",
-  "type": "dart",
-  "codeLens": {
-    "for": ["run-test"]
-  },
-  "customTool": "dart",
-  "customToolReplacesArgs": 5,
-  "toolArgs": ["run", "benchmark_test", "--compiler", "jit", "--profile"]
+  "configurations": [
+    {
+      "name": "Run benchmark",
+      "request": "launch",
+      "type": "dart",
+      "codeLens": {
+        "for": ["run-test"],
+        "path": "**/*_benchmark_test.dart"
+      },
+      "customTool": "dart",
+      "customToolReplacesArgs": 5,
+      "toolArgs": ["run", "benchmark_test"]
+    },
+    {
+      "name": "Update baseline",
+      "request": "launch",
+      "type": "dart",
+      "codeLens": { "for": ["run-test"] },
+      "customTool": "dart",
+      "customToolReplacesArgs": 5,
+      "toolArgs": ["run", "benchmark_test", "--update-baseline"]
+    },
+    {
+      "name": "Profile benchmark",
+      "request": "launch",
+      "type": "dart",
+      "codeLens": { "for": ["run-test"] },
+      "customTool": "dart",
+      "customToolReplacesArgs": 5,
+      "toolArgs": ["run", "benchmark_test", "--profile"]
+    }
+  ]
 }
 ```
 
-This runs the same CLI profiling flow as terminal usage and writes profile files
-to `build/benchmark_test/profiles/` (`*.cpu.json` and `*.devtools.json`). Import
-the `*.devtools.json` files in DevTools → **CPU Profiler** → **Import**.
+`customToolReplacesArgs: 5` removes the default `dart test` arguments so `toolArgs` can run `dart run benchmark_test`. The [article](https://medium.com/@rik.bellens_81452/from-i-think-this-is-slow-to-i-know-why-a-practical-dart-benchmark-workflow-ed5bd9db8caf) shows what these lenses look like in the editor.
 
-### Track benchmarks on GitHub
+## Profiling
 
-Create `.github/workflows/benchmark.yaml` to run benchmarks on every push to
-`master` and store results with
-[github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark):
+JIT only:
+
+```sh
+dart run benchmark_test --profile --plain-name "parse json" test/benchmarks_test.dart
+```
+
+Writes under `build/benchmark_test/profiles/` per benchmark:
+
+| File | Description |
+|------|-------------|
+| `*.cpu.json` | Raw VM `CpuSamples`, filtered to measured benchmark-body iterations |
+| `*.devtools.json` | DevTools snapshot (import or drag into **CPU Profiler**) |
+| `*.postprocessed.devtools.json` | Same format, postprocessed by the package — async wrappers collapsed, setup/warm-up stripped, benchmark body promoted |
+
+The postprocessed file is an extra step the package adds; a normal DevTools export looks like the unprocessed snapshot. The [article](https://medium.com/@rik.bellens_81452/from-i-think-this-is-slow-to-i-know-why-a-practical-dart-benchmark-workflow-ed5bd9db8caf) compares both with flame chart screenshots.
+
+## GitHub Action
+
+Add `.github/workflows/benchmark.yaml`:
 
 ```yaml
 name: Benchmark
 on:
   push:
-    branches:
-      - master
+    branches: [master]
 
 permissions:
   contents: write
@@ -296,7 +261,6 @@ permissions:
 
 jobs:
   benchmark:
-    name: Run benchmark tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -309,22 +273,13 @@ jobs:
           fail-on-alert: true
 ```
 
-The `uses: ...@action-v1` ref selects the GitHub Action wrapper (`action.yml`
-and helper scripts). The benchmark CLI and library version come from your
-project's `benchmark_test` dev dependency in `pubspec.yaml`.
+The `@action-v1` ref selects the action wrapper; the CLI version comes from your project's `benchmark_test` dev dependency.
 
-The action runs the benchmark CLI once per compile type, converts the JSONL
-results to `github-action-benchmark` custom data, and commits benchmark history
-to the `gh-pages` branch. Results are stored as `customBiggerIsBetter`, with
-benchmark names suffixed by compile type, for example `parse json [jit]` and
-`parse json [aot]`. Regression alerts still compare each compile type separately.
-The action always deploys a custom dashboard that plots those series on one chart
-per benchmark and overwrites `index.html` on each run (github-action-benchmark
-itself never replaces an existing `index.html`). The action always runs with
-Dart assertions disabled to keep CI benchmark numbers representative.
+Key inputs: `paths`, `compile` (action default `jit,aot`), `github-token`, `fail-on-alert`, `comment-on-alert`. Also `working-directory`, `sdk` / `flutter-channel` (Flutter), `dart-test-args`, `benchmark-data-dir-path` (default `dev/bench`), `gh-pages-branch`, `alert-threshold`, `auto-push`. See [`action.yml`](action.yml).
 
-For Flutter packages, set `sdk` to `flutter` so the action installs Flutter and
-runs `flutter pub get` before invoking the benchmark CLI:
+Results are published to GitHub Pages with one chart per benchmark; each compile type is a separate series (for example `parse json [jit]`). Live dashboard example: [appsup-dart.github.io/firebase_dart/dev/bench/](https://appsup-dart.github.io/firebase_dart/dev/bench/).
+
+For Flutter packages:
 
 ```yaml
 - uses: appsup-dart/benchmark_test@action-v1
@@ -336,15 +291,14 @@ runs `flutter pub get` before invoking the benchmark CLI:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The benchmark CLI still runs VM benchmark tests, so the benchmark file should be
-runnable on the Dart VM.
-
+Benchmark files must be runnable on the Dart VM. See the [article](https://medium.com/@rik.bellens_81452/from-i-think-this-is-slow-to-i-know-why-a-practical-dart-benchmark-workflow-ed5bd9db8caf) for setup steps and what the dashboard tells you.
 
 ## Sponsor
 
 If your team depends on this package in production, please consider sponsoring maintenance.
 
 Sponsorship helps fund:
+
 - compatibility and dependency updates
 - bug fixes and issue triage
 - documentation and migration support
