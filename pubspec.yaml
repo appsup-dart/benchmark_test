@@ -1,6 +1,6 @@
 name: benchmark_test
 description: A tool to integrate benchmarking into your development and testing workflow.
-version: 0.1.1+2
+version: 0.1.2
 homepage: https://github.com/appsup-dart/benchmark_test
 repository: https://github.com/appsup-dart/benchmark_test
 funding:

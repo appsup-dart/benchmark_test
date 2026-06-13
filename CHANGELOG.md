@@ -1,3 +1,10 @@
+## 0.1.2
+
+ - **FIX**: github action sort commits in graph by by commit time. ([99647854](https://github.com/appsup-dart/benchmark_test/commit/99647854bdf87bbc2a9c5dc03546226606f577c4))
+ - **FIX**(action): reset git working tree before publishing to gh-pages. ([bcdad570](https://github.com/appsup-dart/benchmark_test/commit/bcdad5702aaf705f03758b319bd2a012ed213446))
+ - **FEAT**(action): deploy combined compile-type benchmark charts on GitHub Pages. ([ed1050d3](https://github.com/appsup-dart/benchmark_test/commit/ed1050d34a43f8b2ed6b6f71606e4272f149e1a2))
+ - **DOCS**: rewrite README as reference guide with Medium article link. ([55d51c64](https://github.com/appsup-dart/benchmark_test/commit/55d51c6437da9281b7aacef7e277dd017b4dd823))
+
 ## 0.1.1+2
 
  - **PERF**(benchmark): use compile-time platform iteration timers. ([69c40f98](https://github.com/appsup-dart/benchmark_test/commit/69c40f98d2d432e2873e8c32105567b6527f1452))
